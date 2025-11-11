@@ -1,6 +1,7 @@
 // FCOB helper utilities – staged rebuild
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <optional>
@@ -122,6 +123,7 @@ esphome::Color scale_color(const esphome::Color &c, float factor);
 bool row_reverse_forward_fill(int row_index, bool snake_on);
 bool advance_one_substep(float &acc_ms, uint32_t step_ms, uint32_t dt_ms);
 float clamp01(float v);
+FcobProgressTracker &global_tracker();
 
 }  // namespace ledhelpers
 
@@ -544,6 +546,11 @@ inline float clamp01(float v) {
   if (v < 0.0f) return 0.0f;
   if (v > 1.0f) return 1.0f;
   return v;
+}
+
+inline FcobProgressTracker &global_tracker() {
+  static FcobProgressTracker tracker;
+  return tracker;
 }
 
 }  // namespace ledhelpers
