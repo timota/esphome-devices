@@ -346,6 +346,8 @@ light:
             struct LocalState {
               bool initialized{false};
               bool snake{false};
+              bool shutdown_scheduled{false};
+              uint32_t shutdown_at{0};
             };
             static LocalState state;
             if (initial_run) state.initialized = false;
@@ -359,10 +361,28 @@ light:
               tracker.start_effect(desired, true);
               state.snake = cfg.snake;
               state.initialized = true;
+              state.shutdown_scheduled = false;
             }
 
             // Continue ramping down rows from the stored progress.
             tracker.render_frame(it, cfg, current_color, millis());
+
+            if (!tracker.finished()) {
+              state.shutdown_scheduled = false;
+              return;
+            }
+
+            if (!state.shutdown_scheduled) {
+              state.shutdown_scheduled = true;
+              state.shutdown_at = millis() + 50u;
+              return;
+            }
+
+            if ((int32_t)(millis() - state.shutdown_at) >= 0) {
+              auto call = id(light_dig).turn_off();
+              call.perform();
+              state.shutdown_scheduled = false;
+            }
 
       - addressable_lambda:
           name: "FCOB Off Down"
@@ -398,6 +418,8 @@ light:
             struct LocalState {
               bool initialized{false};
               bool snake{false};
+              bool shutdown_scheduled{false};
+              uint32_t shutdown_at{0};
             };
             static LocalState state;
             if (initial_run) state.initialized = false;
@@ -411,7 +433,25 @@ light:
               tracker.start_effect(desired, true);
               state.snake = cfg.snake;
               state.initialized = true;
+              state.shutdown_scheduled = false;
             }
 
             // Let the helper handle tail fade + wobble repaint.
             tracker.render_frame(it, cfg, current_color, millis());
+
+            if (!tracker.finished()) {
+              state.shutdown_scheduled = false;
+              return;
+            }
+
+            if (!state.shutdown_scheduled) {
+              state.shutdown_scheduled = true;
+              state.shutdown_at = millis() + 50u;
+              return;
+            }
+
+            if ((int32_t)(millis() - state.shutdown_at) >= 0) {
+              auto call = id(light_dig).turn_off();
+              call.perform();
+              state.shutdown_scheduled = false;
+            }

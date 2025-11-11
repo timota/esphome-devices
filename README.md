@@ -45,6 +45,7 @@ Every lambda:
 - Applies the same wobble/amplitude/frequency values.
 - Calls `start_effect(...)` only when the direction or snake flag changes, so scan-in/out is seamless.
 - Calls `render_frame(...)` each update so wobble keeps running even after rows complete.
+- OFF effects schedule a one-shot `light.turn_off()` about 50 ms after every row clears, which gracefully triggers the existing relay automation.
 
 ## Helper Highlights (`includes/led_helpers_fcob.h`)
 
