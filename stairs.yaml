@@ -235,21 +235,6 @@ light:
             if (cfg.wobble_amp_deg < 0.0f) cfg.wobble_amp_deg = 0.0f;
             cfg.wobble_freq_deg = id(wobble_freq_deg).state;
             if (cfg.wobble_freq_deg < 0.0f) cfg.wobble_freq_deg = 0.0f;
-            cfg.wobble_enabled = id(subtle_wobble_enable).state;
-            cfg.wobble_amp_deg = id(subtle_hue_amp).state;
-            if (cfg.wobble_amp_deg < 0.0f) cfg.wobble_amp_deg = 0.0f;
-            cfg.wobble_freq_deg = id(wobble_freq_deg).state;
-            if (cfg.wobble_freq_deg < 0.0f) cfg.wobble_freq_deg = 0.0f;
-            cfg.wobble_enabled = id(subtle_wobble_enable).state;
-            cfg.wobble_amp_deg = id(subtle_hue_amp).state;
-            if (cfg.wobble_amp_deg < 0.0f) cfg.wobble_amp_deg = 0.0f;
-            cfg.wobble_freq_deg = id(wobble_freq_deg).state;
-            if (cfg.wobble_freq_deg < 0.0f) cfg.wobble_freq_deg = 0.0f;
-            cfg.wobble_enabled = id(subtle_wobble_enable).state;
-            cfg.wobble_amp_deg = id(subtle_hue_amp).state;
-            if (cfg.wobble_amp_deg < 0.0f) cfg.wobble_amp_deg = 0.0f;
-            cfg.wobble_freq_deg = id(wobble_freq_deg).state;
-            if (cfg.wobble_freq_deg < 0.0f) cfg.wobble_freq_deg = 0.0f;
 
             EffectPlan desired{FlowMode::Fill, RowOrder::BottomToTop};
             struct LocalState {
@@ -295,6 +280,11 @@ light:
             if (ease_opt == "Linear") cfg.ease = EaseProfile::Linear;
             else if (ease_opt == "Quint InOut") cfg.ease = EaseProfile::QuintInOut;
             else cfg.ease = EaseProfile::CubicInOut;
+            cfg.wobble_enabled = id(subtle_wobble_enable).state;
+            cfg.wobble_amp_deg = id(subtle_hue_amp).state;
+            if (cfg.wobble_amp_deg < 0.0f) cfg.wobble_amp_deg = 0.0f;
+            cfg.wobble_freq_deg = id(wobble_freq_deg).state;
+            if (cfg.wobble_freq_deg < 0.0f) cfg.wobble_freq_deg = 0.0f;
 
             EffectPlan desired{FlowMode::Fill, RowOrder::TopToBottom};
             struct LocalState {
@@ -340,6 +330,11 @@ light:
             if (ease_opt == "Linear") cfg.ease = EaseProfile::Linear;
             else if (ease_opt == "Quint InOut") cfg.ease = EaseProfile::QuintInOut;
             else cfg.ease = EaseProfile::CubicInOut;
+            cfg.wobble_enabled = id(subtle_wobble_enable).state;
+            cfg.wobble_amp_deg = id(subtle_hue_amp).state;
+            if (cfg.wobble_amp_deg < 0.0f) cfg.wobble_amp_deg = 0.0f;
+            cfg.wobble_freq_deg = id(wobble_freq_deg).state;
+            if (cfg.wobble_freq_deg < 0.0f) cfg.wobble_freq_deg = 0.0f;
 
             EffectPlan desired{FlowMode::Off, RowOrder::BottomToTop};
             struct LocalState {
@@ -385,6 +380,11 @@ light:
             if (ease_opt == "Linear") cfg.ease = EaseProfile::Linear;
             else if (ease_opt == "Quint InOut") cfg.ease = EaseProfile::QuintInOut;
             else cfg.ease = EaseProfile::CubicInOut;
+            cfg.wobble_enabled = id(subtle_wobble_enable).state;
+            cfg.wobble_amp_deg = id(subtle_hue_amp).state;
+            if (cfg.wobble_amp_deg < 0.0f) cfg.wobble_amp_deg = 0.0f;
+            cfg.wobble_freq_deg = id(wobble_freq_deg).state;
+            if (cfg.wobble_freq_deg < 0.0f) cfg.wobble_freq_deg = 0.0f;
 
             EffectPlan desired{FlowMode::Off, RowOrder::TopToBottom};
             struct LocalState {
