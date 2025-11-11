@@ -41,6 +41,9 @@ struct RuntimeConfig {
   float row_threshold{0.2f};
   bool snake{false};
   EaseProfile ease{EaseProfile::CubicInOut};
+  bool wobble_enabled{false};
+  float wobble_amp_deg{0.0f};
+  float wobble_freq_deg{12.0f};
 };
 
 struct EffectPlan {
@@ -58,6 +61,13 @@ struct RowProgress {
   float substep_acc{0.0f};
   bool active{false};
   bool finished{false};
+};
+
+struct BaseColorState {
+  esphome::Color rgb{esphome::Color::BLACK};
+  float h{0.0f};
+  float s{0.0f};
+  float v{0.0f};
 };
 
 class FcobProgressTracker {
@@ -97,11 +107,13 @@ class FcobProgressTracker {
 
   void handle_fill_frame(esphome::light::AddressableLight &strip,
                          const RuntimeConfig &cfg,
-                         const esphome::Color &base_color,
+                         const BaseColorState &base_state,
+                         float t_sec,
                          uint32_t dt_ms);
   void handle_off_frame(esphome::light::AddressableLight &strip,
                         const RuntimeConfig &cfg,
-                        const esphome::Color &base_color,
+                        const BaseColorState &base_state,
+                        float t_sec,
                         uint32_t dt_ms);
 };
 
@@ -124,6 +136,21 @@ bool row_reverse_forward_fill(int row_index, bool snake_on);
 bool advance_one_substep(float &acc_ms, uint32_t step_ms, uint32_t dt_ms);
 float clamp01(float v);
 FcobProgressTracker &global_tracker();
+void rgb2hsv(uint8_t r, uint8_t g, uint8_t b, float &h, float &s, float &v);
+esphome::Color hsv2rgb(float h, float s, float v);
+float sin_deg_fast(float degrees);
+float smoothstep(float edge0, float edge1, float x);
+esphome::Color wobble_sample(const BaseColorState &base_state,
+                             const RuntimeConfig &cfg,
+                             int row_index,
+                             int phys_led,
+                             float t_sec);
+esphome::Color color_with_wobble(const BaseColorState &base_state,
+                                 const RuntimeConfig &cfg,
+                                 int row_index,
+                                 int phys_led,
+                                 float intensity,
+                                 float t_sec);
 
 }  // namespace ledhelpers
 
@@ -133,6 +160,11 @@ namespace ledhelpers {
 namespace {
 constexpr uint8_t kMinOnU8 = 6;
 constexpr float kEpsilon = 0.0001f;
+constexpr float kWobbleVMin = 0.15f;
+constexpr float kWobbleVMax = 0.60f;
+constexpr float kRowPhaseMul = 9.5f;
+constexpr float kLedPhaseMul = 0.5f;
+constexpr float kPi = 3.14159265358979323846f;
 }  // namespace
 
 inline void FcobProgressTracker::bind_map(const std::vector<std::vector<int>> *map) {
@@ -232,7 +264,6 @@ inline bool FcobProgressTracker::render_frame(esphome::light::AddressableLight &
   ensure_row_cache();
   refresh_row_lengths();
   ensure_active_row();
-  if (finished_) return true;
 
   if (first_frame_) {
     first_frame_ = false;
@@ -247,10 +278,16 @@ inline bool FcobProgressTracker::render_frame(esphome::light::AddressableLight &
     if (dt_ms > cap) dt_ms = cap;
   }
 
+  BaseColorState base_state;
+  base_state.rgb = base_color;
+  rgb2hsv(base_color.r, base_color.g, base_color.b, base_state.h, base_state.s, base_state.v);
+
+  const float t_sec = now_ms / 1000.0f;
+
   if (plan_.flow == FlowMode::Fill) {
-    handle_fill_frame(strip, cfg, base_color, dt_ms);
+    handle_fill_frame(strip, cfg, base_state, t_sec, dt_ms);
   } else {
-    handle_off_frame(strip, cfg, base_color, dt_ms);
+    handle_off_frame(strip, cfg, base_state, t_sec, dt_ms);
   }
   update_finished_flag();
   return true;
@@ -326,7 +363,8 @@ inline void FcobProgressTracker::update_finished_flag() {
 
 inline void FcobProgressTracker::handle_fill_frame(esphome::light::AddressableLight &strip,
                                                    const RuntimeConfig &cfg,
-                                                   const esphome::Color &base_color,
+                                                   const BaseColorState &base_state,
+                                                   float t_sec,
                                                    uint32_t dt_ms) {
   if (!map_) return;
   const uint32_t step_ms = compute_step_ms(cfg.per_led_ms, cfg.fade_steps);
@@ -364,20 +402,18 @@ inline void FcobProgressTracker::handle_fill_frame(esphome::light::AddressableLi
     for (int i = 0; i < len; ++i) {
       const int phys = row_phys_at(*map_, (int) ridx, i, cfg.snake);
       if (phys < 0 || phys >= strip.size()) continue;
-      if (i < full) {
-        strip[phys] = base_color;
-      } else if (i == full && full < len) {
-        strip[phys] = scale_color(base_color, apply_ease(cfg.ease, frac));
-      } else {
-        strip[phys] = esphome::Color::BLACK;
-      }
+      float intensity = 0.0f;
+      if (i < full) intensity = 1.0f;
+      else if (i == full && full < len) intensity = apply_ease(cfg.ease, frac);
+      strip[phys] = color_with_wobble(base_state, cfg, (int) ridx, phys, intensity, t_sec);
     }
   }
 }
 
 inline void FcobProgressTracker::handle_off_frame(esphome::light::AddressableLight &strip,
                                                   const RuntimeConfig &cfg,
-                                                  const esphome::Color &base_color,
+                                                  const BaseColorState &base_state,
+                                                  float t_sec,
                                                   uint32_t dt_ms) {
   if (!map_) return;
   const uint32_t step_ms = compute_step_ms(cfg.per_led_ms, cfg.fade_steps);
@@ -415,13 +451,10 @@ inline void FcobProgressTracker::handle_off_frame(esphome::light::AddressableLig
     for (int i = 0; i < len; ++i) {
       const int phys = row_phys_at(*map_, (int) ridx, i, cfg.snake);
       if (phys < 0 || phys >= strip.size()) continue;
-      if (i < full) {
-        strip[phys] = base_color;
-      } else if (i == full && full < len) {
-        strip[phys] = scale_color(base_color, apply_ease(cfg.ease, frac));
-      } else {
-        strip[phys] = esphome::Color::BLACK;
-      }
+      float intensity = 0.0f;
+      if (i < full) intensity = 1.0f;
+      else if (i == full && full < len) intensity = apply_ease(cfg.ease, frac);
+      strip[phys] = color_with_wobble(base_state, cfg, (int) ridx, phys, intensity, t_sec);
     }
   }
 }
@@ -551,6 +584,94 @@ inline float clamp01(float v) {
 inline FcobProgressTracker &global_tracker() {
   static FcobProgressTracker tracker;
   return tracker;
+}
+
+inline void rgb2hsv(uint8_t r, uint8_t g, uint8_t b, float &h, float &s, float &v) {
+  float rf = r / 255.0f;
+  float gf = g / 255.0f;
+  float bf = b / 255.0f;
+  float cmax = std::max(rf, std::max(gf, bf));
+  float cmin = std::min(rf, std::min(gf, bf));
+  float delta = cmax - cmin;
+
+  if (delta == 0.0f) h = 0.0f;
+  else if (cmax == rf) h = 60.0f * std::fmod(((gf - bf) / delta), 6.0f);
+  else if (cmax == gf) h = 60.0f * (((bf - rf) / delta) + 2.0f);
+  else h = 60.0f * (((rf - gf) / delta) + 4.0f);
+  if (h < 0.0f) h += 360.0f;
+
+  s = (cmax == 0.0f) ? 0.0f : (delta / cmax);
+  v = cmax;
+}
+
+inline esphome::Color hsv2rgb(float h, float s, float v) {
+  h = std::fmod(h, 360.0f);
+  if (h < 0.0f) h += 360.0f;
+  s = clamp01(s);
+  v = clamp01(v);
+
+  float c = v * s;
+  float x = c * (1.0f - std::fabs(std::fmod(h / 60.0f, 2.0f) - 1.0f));
+  float m = v - c;
+
+  float rf = 0, gf = 0, bf = 0;
+  if      (h < 60.0f)  { rf = c; gf = x; bf = 0; }
+  else if (h < 120.0f) { rf = x; gf = c; bf = 0; }
+  else if (h < 180.0f) { rf = 0; gf = c; bf = x; }
+  else if (h < 240.0f) { rf = 0; gf = x; bf = c; }
+  else if (h < 300.0f) { rf = x; gf = 0; bf = c; }
+  else                 { rf = c; gf = 0; bf = x; }
+
+  uint8_t rr = (uint8_t) esphome::clamp((int) std::round((rf + m) * 255.0f), 0, 255);
+  uint8_t gg = (uint8_t) esphome::clamp((int) std::round((gf + m) * 255.0f), 0, 255);
+  uint8_t bb = (uint8_t) esphome::clamp((int) std::round((bf + m) * 255.0f), 0, 255);
+  return esphome::Color(rr, gg, bb);
+}
+
+inline float sin_deg_fast(float degrees) {
+  return std::sinf(degrees * (kPi / 180.0f));
+}
+
+inline float smoothstep(float edge0, float edge1, float x) {
+  float t = clamp01((x - edge0) / (edge1 - edge0));
+  return t * t * (3.0f - 2.0f * t);
+}
+
+inline esphome::Color wobble_sample(const BaseColorState &base_state,
+                                    const RuntimeConfig &cfg,
+                                    int row_index,
+                                    int phys_led,
+                                    float t_sec) {
+  if (!cfg.wobble_enabled || cfg.wobble_amp_deg <= 0.0f || base_state.v <= 0.0f) {
+    return base_state.rgb;
+  }
+  const float amp_scale = smoothstep(kWobbleVMin, kWobbleVMax, base_state.v);
+  if (amp_scale <= 0.0f) return base_state.rgb;
+
+  const float hue_amp = cfg.wobble_amp_deg * amp_scale;
+  float phase = t_sec * cfg.wobble_freq_deg;
+  phase += (float) phys_led * kLedPhaseMul;
+  phase += (float) row_index * kRowPhaseMul;
+
+  const float hue = base_state.h + sin_deg_fast(phase) * hue_amp;
+  return hsv2rgb(hue, base_state.s, base_state.v);
+}
+
+inline esphome::Color color_with_wobble(const BaseColorState &base_state,
+                                        const RuntimeConfig &cfg,
+                                        int row_index,
+                                        int phys_led,
+                                        float intensity,
+                                        float t_sec) {
+  intensity = clamp01(intensity);
+  if (intensity <= 0.0f) return esphome::Color::BLACK;
+
+  esphome::Color c = base_state.rgb;
+  if (cfg.wobble_enabled && cfg.wobble_amp_deg > 0.0f && cfg.wobble_freq_deg != 0.0f) {
+    c = wobble_sample(base_state, cfg, row_index, phys_led, t_sec);
+  }
+  if (intensity >= 0.999f) return c;
+  return scale_color(c, intensity);
 }
 
 }  // namespace ledhelpers
