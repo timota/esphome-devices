@@ -36,6 +36,7 @@ enum class EffectFlavor {
 };
 
 struct RuntimeConfig {
+  // Per-frame knobs pulled from YAML controls.
   uint32_t per_led_ms{24};
   int fade_steps{1};
   float row_threshold{0.2f};
@@ -47,15 +48,18 @@ struct RuntimeConfig {
 };
 
 struct EffectPlan {
+  // High-level intent describing the running effect.
   FlowMode flow{FlowMode::Fill};
   RowOrder order{RowOrder::BottomToTop};
 };
 
 struct ResumeSnapshot {
+  // Lightweight snapshot so scan-in/out can resume statefully.
   std::vector<float> lit_rows;
 };
 
 struct RowProgress {
+  // Working state per mapped row.
   int row_len{0};
   float lit_count{0.0f};
   float substep_acc{0.0f};
@@ -64,6 +68,7 @@ struct RowProgress {
 };
 
 struct BaseColorState {
+  // Cached HSV + RGB for wobble sampling.
   esphome::Color rgb{esphome::Color::BLACK};
   float h{0.0f};
   float s{0.0f};
@@ -72,15 +77,22 @@ struct BaseColorState {
 
 class FcobProgressTracker {
  public:
+  // Attach the LED map (id(map) from YAML).
   void bind_map(const std::vector<std::vector<int>> *map);
+  // Reset progress; optionally keep the current lit counts for resume.
   void reset(bool clear_resume = true);
 
+  // Scan the strip to recover already-lit prefixes (scan-in/out).
   void sync_from_strip(esphome::light::AddressableLight &strip, bool snake);
+  // Load an external snapshot back into working memory.
   void load_snapshot(const ResumeSnapshot &snapshot);
+  // Capture current per-row progress.
   ResumeSnapshot snapshot() const;
 
+  // Start an effect plan; optionally reuse resume data.
   void start_effect(const EffectPlan &plan, bool resume);
 
+  // Advance the effect by one frame and repaint the strip.
   bool render_frame(esphome::light::AddressableLight &strip,
                     const RuntimeConfig &cfg,
                     const esphome::Color &base_color,
@@ -97,12 +109,19 @@ class FcobProgressTracker {
   bool first_frame_{true};
   uint32_t last_frame_ms_{0};
 
+  // Ensure our row vector matches the current map size.
   void ensure_row_cache();
+  // Refresh cached row lengths after any map updates.
   void refresh_row_lengths();
+  // Make sure at least one unfinished row is active.
   void ensure_active_row();
+  // Find the next unfinished row from either end.
   int first_available_row(bool from_top) const;
+  // Find the neighbor row relative to the active one.
   int neighbor_row(int current, bool from_top) const;
+  // Flag a row as active and reset its timers.
   void activate_row(int idx);
+  // Aggregate per-row finished flags.
   void update_finished_flag();
 
   void handle_fill_frame(esphome::light::AddressableLight &strip,
@@ -158,13 +177,13 @@ esphome::Color color_with_wobble(const BaseColorState &base_state,
 namespace ledhelpers {
 
 namespace {
-constexpr uint8_t kMinOnU8 = 6;
-constexpr float kEpsilon = 0.0001f;
-constexpr float kWobbleVMin = 0.15f;
-constexpr float kWobbleVMax = 0.60f;
-constexpr float kRowPhaseMul = 9.5f;
-constexpr float kLedPhaseMul = 0.5f;
-constexpr float kPi = 3.14159265358979323846f;
+constexpr uint8_t kMinOnU8 = 6;                 // lit detection floor
+constexpr float kEpsilon = 0.0001f;             // tiny tolerance for comparisons
+constexpr float kWobbleVMin = 0.15f;            // wobble ramps in near this V
+constexpr float kWobbleVMax = 0.60f;            // wobble peaks by this V
+constexpr float kRowPhaseMul = 9.5f;            // row-specific wobble phase spread
+constexpr float kLedPhaseMul = 0.5f;            // per-pixel wobble phase spread
+constexpr float kPi = 3.14159265358979323846f;  // pi constant
 }  // namespace
 
 inline void FcobProgressTracker::bind_map(const std::vector<std::vector<int>> *map) {
@@ -173,6 +192,7 @@ inline void FcobProgressTracker::bind_map(const std::vector<std::vector<int>> *m
   refresh_row_lengths();
 }
 
+// Clear cached progress and optionally zero resume data.
 inline void FcobProgressTracker::reset(bool clear_resume) {
   finished_ = true;
   first_frame_ = true;
@@ -192,6 +212,7 @@ inline void FcobProgressTracker::reset(bool clear_resume) {
   }
 }
 
+// Recover per-row lit prefix counts from the strip, used for scan-in/out.
 inline void FcobProgressTracker::sync_from_strip(esphome::light::AddressableLight &strip,
                                                  bool snake) {
   if (!map_) return;
@@ -206,6 +227,7 @@ inline void FcobProgressTracker::sync_from_strip(esphome::light::AddressableLigh
   }
 }
 
+// Restore progress from a previously taken snapshot.
 inline void FcobProgressTracker::load_snapshot(const ResumeSnapshot &snapshot) {
   if (!map_) return;
   ensure_row_cache();
@@ -221,6 +243,7 @@ inline void FcobProgressTracker::load_snapshot(const ResumeSnapshot &snapshot) {
   }
 }
 
+// Capture current per-row lit counts.
 inline ResumeSnapshot FcobProgressTracker::snapshot() const {
   ResumeSnapshot snap;
   snap.lit_rows.reserve(rows_.size());
@@ -228,6 +251,7 @@ inline ResumeSnapshot FcobProgressTracker::snapshot() const {
   return snap;
 }
 
+// Initialize an effect plan and optionally reuse resume state.
 inline void FcobProgressTracker::start_effect(const EffectPlan &plan, bool resume) {
   plan_ = plan;
   finished_ = false;
@@ -256,6 +280,7 @@ inline void FcobProgressTracker::start_effect(const EffectPlan &plan, bool resum
   update_finished_flag();
 }
 
+// Step the effect once and repaint the entire strip.
 inline bool FcobProgressTracker::render_frame(esphome::light::AddressableLight &strip,
                                               const RuntimeConfig &cfg,
                                               const esphome::Color &base_color,
@@ -293,6 +318,7 @@ inline bool FcobProgressTracker::render_frame(esphome::light::AddressableLight &
   return true;
 }
 
+// Ensure rows_ vector matches the bound map.
 inline void FcobProgressTracker::ensure_row_cache() {
   if (!map_) {
     rows_.clear();
@@ -301,6 +327,7 @@ inline void FcobProgressTracker::ensure_row_cache() {
   if (rows_.size() != map_->size()) rows_.assign(map_->size(), RowProgress{});
 }
 
+// Sync cached row lengths and clamp lit counts.
 inline void FcobProgressTracker::refresh_row_lengths() {
   if (!map_) return;
   for (size_t i = 0; i < rows_.size(); ++i) {
@@ -311,6 +338,7 @@ inline void FcobProgressTracker::refresh_row_lengths() {
   }
 }
 
+// Turn on the first unfinished row if none are active.
 inline void FcobProgressTracker::ensure_active_row() {
   if (rows_.empty()) return;
   for (const auto &row : rows_) {
@@ -321,6 +349,7 @@ inline void FcobProgressTracker::ensure_active_row() {
   if (idx >= 0) rows_[idx].active = true;
 }
 
+// Find first unfinished row scanning from either side.
 inline int FcobProgressTracker::first_available_row(bool from_top) const {
   if (rows_.empty()) return -1;
   if (from_top) {
@@ -333,6 +362,7 @@ inline int FcobProgressTracker::first_available_row(bool from_top) const {
   return -1;
 }
 
+// Find next unfinished neighbor from the current row.
 inline int FcobProgressTracker::neighbor_row(int current, bool from_top) const {
   if (rows_.empty()) return -1;
   int idx = current;
@@ -343,6 +373,7 @@ inline int FcobProgressTracker::neighbor_row(int current, bool from_top) const {
   }
 }
 
+// Arm a row for animation.
 inline void FcobProgressTracker::activate_row(int idx) {
   if (idx < 0 || idx >= (int) rows_.size()) return;
   auto &row = rows_[idx];
@@ -351,6 +382,7 @@ inline void FcobProgressTracker::activate_row(int idx) {
   row.substep_acc = 0.0f;
 }
 
+// Recompute the aggregate finished_ flag.
 inline void FcobProgressTracker::update_finished_flag() {
   finished_ = true;
   for (const auto &row : rows_) {
@@ -361,6 +393,7 @@ inline void FcobProgressTracker::update_finished_flag() {
   }
 }
 
+// Progress ON animation and repaint rows with wobble applied.
 inline void FcobProgressTracker::handle_fill_frame(esphome::light::AddressableLight &strip,
                                                    const RuntimeConfig &cfg,
                                                    const BaseColorState &base_state,
@@ -410,6 +443,7 @@ inline void FcobProgressTracker::handle_fill_frame(esphome::light::AddressableLi
   }
 }
 
+// Progress OFF animation and repaint rows with wobble applied.
 inline void FcobProgressTracker::handle_off_frame(esphome::light::AddressableLight &strip,
                                                   const RuntimeConfig &cfg,
                                                   const BaseColorState &base_state,
@@ -459,6 +493,7 @@ inline void FcobProgressTracker::handle_off_frame(esphome::light::AddressableLig
   }
 }
 
+// Convert per-LED timing + fade steps into a sub-step interval.
 inline uint32_t compute_step_ms(uint32_t per_led_ms, int fade_steps) {
   if (fade_steps <= 0) fade_steps = 1;
   float step_f = (float) per_led_ms / (float) fade_steps;
@@ -466,6 +501,7 @@ inline uint32_t compute_step_ms(uint32_t per_led_ms, int fade_steps) {
   return (uint32_t) step_f;
 }
 
+// Apply selected easing profile to a 0..1 value.
 inline float apply_ease(EaseProfile ease, float t) {
   t = clamp01(t);
   switch (ease) {
@@ -482,6 +518,7 @@ inline float apply_ease(EaseProfile ease, float t) {
   }
 }
 
+// Decide when the next row should unlock based on threshold progress.
 inline bool should_unlock(int len, int progress, float thr, bool off_mode) {
   if (len <= 0) return false;
   const int gate = (int) std::ceil(clamp01(thr) * (float) len);
@@ -490,24 +527,29 @@ inline bool should_unlock(int len, int progress, float thr, bool off_mode) {
   return cleared >= gate;
 }
 
+// Helper for ON-direction threshold checks.
 inline bool should_unlock_on(int len, int progress, float thr) {
   return should_unlock(len, progress, thr, false);
 }
 
+// Helper for OFF-direction threshold checks.
 inline bool should_unlock_off(int len, int progress, float thr) {
   return should_unlock(len, progress, thr, true);
 }
 
+// Determine if this row should be traversed in reverse due to snake mode.
 inline bool row_reverse_forward_fill(int row_index, bool snake_on) {
   if (!snake_on) return false;
   return (row_index % 2) == 1;
 }
 
+// Safe row length lookup.
 inline int row_len(const std::vector<std::vector<int>> &map, int row) {
   if (row < 0 || row >= (int) map.size()) return 0;
   return (int) map[row].size();
 }
 
+// Logical index -> physical LED index with optional zig-zag reversal.
 inline int row_phys_at(const std::vector<std::vector<int>> &map, int row, int i, bool snake) {
   if (row < 0 || row >= (int) map.size()) return -1;
   const auto &row_vec = map[row];
@@ -518,18 +560,21 @@ inline int row_phys_at(const std::vector<std::vector<int>> &map, int row, int i,
   return row_vec[logical];
 }
 
+// Physical LED at the ON head.
 inline int row_head_index_fill(const std::vector<std::vector<int>> &map, int row, int pos,
                                bool snake) {
   if (pos < 0) return -1;
   return row_phys_at(map, row, pos, snake);
 }
 
+// Physical LED at the OFF head.
 inline int row_head_index_off(const std::vector<std::vector<int>> &map, int row, int pos,
                               bool snake) {
   if (pos <= 0) return -1;
   return row_phys_at(map, row, pos - 1, snake);
 }
 
+// Count how many LEDs in a row are currently lit (used for resume).
 inline int scan_resume_row_prefix(esphome::light::AddressableLight &strip,
                                   const std::vector<std::vector<int>> &map, int row, bool snake) {
   const int len = row_len(map, row);
@@ -547,6 +592,7 @@ inline int scan_resume_row_prefix(esphome::light::AddressableLight &strip,
   return esphome::clamp(lit, 0, len);
 }
 
+// Quick brightness check with hysteresis to detect "lit" LEDs.
 inline bool is_led_lit_soft(esphome::light::AddressableLight &strip, int phys_led) {
   if (phys_led < 0 || phys_led >= strip.size()) return false;
   const auto color = strip[phys_led].get();
@@ -554,6 +600,7 @@ inline bool is_led_lit_soft(esphome::light::AddressableLight &strip, int phys_le
   return peak >= kMinOnU8;
 }
 
+// Scale a color intensity while preserving hue.
 inline esphome::Color scale_color(const esphome::Color &c, float factor) {
   factor = clamp01(factor);
   auto apply = [&](uint8_t channel) -> uint8_t {
@@ -562,6 +609,7 @@ inline esphome::Color scale_color(const esphome::Color &c, float factor) {
   return esphome::Color(apply(c.r), apply(c.g), apply(c.b));
 }
 
+// Advance time accumulators by at most one sub-step per frame.
 inline bool advance_one_substep(float &acc_ms, uint32_t step_ms, uint32_t dt_ms) {
   if (step_ms == 0) return false;
   const uint32_t cap = step_ms * 2u;
@@ -575,17 +623,20 @@ inline bool advance_one_substep(float &acc_ms, uint32_t step_ms, uint32_t dt_ms)
   return false;
 }
 
+// Clamp a float to [0,1].
 inline float clamp01(float v) {
   if (v < 0.0f) return 0.0f;
   if (v > 1.0f) return 1.0f;
   return v;
 }
 
+// Shared singleton tracker used by all YAML effects.
 inline FcobProgressTracker &global_tracker() {
   static FcobProgressTracker tracker;
   return tracker;
 }
 
+// Minimal RGB->HSV conversion for wobble calculations.
 inline void rgb2hsv(uint8_t r, uint8_t g, uint8_t b, float &h, float &s, float &v) {
   float rf = r / 255.0f;
   float gf = g / 255.0f;
@@ -604,6 +655,7 @@ inline void rgb2hsv(uint8_t r, uint8_t g, uint8_t b, float &h, float &s, float &
   v = cmax;
 }
 
+// Minimal HSV->RGB conversion.
 inline esphome::Color hsv2rgb(float h, float s, float v) {
   h = std::fmod(h, 360.0f);
   if (h < 0.0f) h += 360.0f;
@@ -628,15 +680,18 @@ inline esphome::Color hsv2rgb(float h, float s, float v) {
   return esphome::Color(rr, gg, bb);
 }
 
+// Degrees-based sine helper.
 inline float sin_deg_fast(float degrees) {
   return std::sinf(degrees * (kPi / 180.0f));
 }
 
+// Smoothstep helper for wobble amplitude scaling.
 inline float smoothstep(float edge0, float edge1, float x) {
   float t = clamp01((x - edge0) / (edge1 - edge0));
   return t * t * (3.0f - 2.0f * t);
 }
 
+// Sample a wobble-adjusted color for a specific LED.
 inline esphome::Color wobble_sample(const BaseColorState &base_state,
                                     const RuntimeConfig &cfg,
                                     int row_index,
@@ -657,6 +712,7 @@ inline esphome::Color wobble_sample(const BaseColorState &base_state,
   return hsv2rgb(hue, base_state.s, base_state.v);
 }
 
+// Apply wobble (if enabled) and an intensity scalar to the base color.
 inline esphome::Color color_with_wobble(const BaseColorState &base_state,
                                         const RuntimeConfig &cfg,
                                         int row_index,

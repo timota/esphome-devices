@@ -219,6 +219,7 @@ light:
               return;
             }
 
+            // Pull current UI settings into a runtime config.
             RuntimeConfig cfg;
             cfg.per_led_ms = (uint32_t) id(per_led_ms).state;
             if (cfg.per_led_ms < 1u) cfg.per_led_ms = 1u;
@@ -236,6 +237,7 @@ light:
             cfg.wobble_freq_deg = id(wobble_freq_deg).state;
             if (cfg.wobble_freq_deg < 0.0f) cfg.wobble_freq_deg = 0.0f;
 
+            // Warm-start logic so scan-in/out resumes from the previous effect.
             EffectPlan desired{FlowMode::Fill, RowOrder::BottomToTop};
             struct LocalState {
               bool initialized{false};
@@ -255,6 +257,7 @@ light:
               state.initialized = true;
             }
 
+            // Paint the frame (wobble keeps running even when finished).
             tracker.render_frame(it, cfg, current_color, millis());
 
       - addressable_lambda:
@@ -269,6 +272,7 @@ light:
               return;
             }
 
+            // Mirror Fill Up but with the opposite row order.
             RuntimeConfig cfg;
             cfg.per_led_ms = (uint32_t) id(per_led_ms).state;
             if (cfg.per_led_ms < 1u) cfg.per_led_ms = 1u;
@@ -305,6 +309,7 @@ light:
               state.initialized = true;
             }
 
+            // Repaint rows with the helper’s current progress.
             tracker.render_frame(it, cfg, current_color, millis());
 
       - addressable_lambda:
@@ -319,6 +324,7 @@ light:
               return;
             }
 
+            // OFF animation shares the same runtime config inputs.
             RuntimeConfig cfg;
             cfg.per_led_ms = (uint32_t) id(per_led_ms).state;
             if (cfg.per_led_ms < 1u) cfg.per_led_ms = 1u;
@@ -355,6 +361,7 @@ light:
               state.initialized = true;
             }
 
+            // Continue ramping down rows from the stored progress.
             tracker.render_frame(it, cfg, current_color, millis());
 
       - addressable_lambda:
@@ -369,6 +376,7 @@ light:
               return;
             }
 
+            // Same as Off Up but running from the top row.
             RuntimeConfig cfg;
             cfg.per_led_ms = (uint32_t) id(per_led_ms).state;
             if (cfg.per_led_ms < 1u) cfg.per_led_ms = 1u;
@@ -405,4 +413,5 @@ light:
               state.initialized = true;
             }
 
+            // Let the helper handle tail fade + wobble repaint.
             tracker.render_frame(it, cfg, current_color, millis());
