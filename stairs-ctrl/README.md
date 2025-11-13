@@ -100,8 +100,6 @@ Each lambda:
 Mapping lets the firmware address LEDs in any logical order. The `light_led_map` substitution holds an array of arrays: each inner list represents a physical row (in order or reversed). By updating that map you can match serpentine wiring, matrices, or stair treads without touching the effect logic. The `Snake (zig-zag rows)` switch flips row traversal per index, so you can dynamically choose between straight or serpentine addressing.
 
 ## Notes
-
-- GPIO15 drives the relay; ESPHome warns because it is a strapping pin—keep external pull-ups/downs minimal.  
-- GPIO5 powers the Ethernet PHY and is also a strapping pin; ensure it is not forced during boot.  
+ 
 - Scan-in/out does not persist across reboots because the strip starts dark; progress survives only while the controller stays powered.  
 - For smooth motion keep `per_led_ms` around 10–30 ms and `Fade Steps` between 1–3.  
