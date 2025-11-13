@@ -1,25 +1,26 @@
 # Stairs Controller (FCOB)
 
-Addressable FCOB strip controller built with ESPHome + ESP32.  
-Features:
+## General
 
-- 244-pixel WS2811 FCOB map with alternating “snake” rows toggle.
-- Four runtime effects (fill/off in both directions) sharing a single C++ helper so scan-in/out picks up where the last effect stopped.
-- Per-LED timing, fade-step subdivision, row-threshold gating, and easing (Linear, Cubic, Quint).
-- Optional wobble overlay (continuous hue drift) that keeps animating even when an effect is finished.
-- Power relay automation, OTA/API/web server, and runtime switches/numbers for tuning.
+ESPHome project for an ESP32-based FCOB strip controller. It focuses on “row-first” animations for stair lighting and exposes four sequential effects (fill/off in both directions) that all share one helper, so changing effects resumes from the last position. Highlights:
 
-## Files
+- Programmable LED mapping: treat the strip as neatly indexed rows (with optional zig-zag) regardless of how it’s wired.
+- Directional fill/off effects with configurable per-LED timing, fade steps, row-threshold gating, and easing (Linear, Cubic InOut, Quint InOut).
+- Optional wobble overlay (continuous hue drift) that keeps animating even after an effect ends.
+- Automatic light shutdown for OFF effects (~50 ms after the last row clears) which also drops the relay power.
+- Built-in OTA/API/web server plus runtime controls exposed to Home Assistant.
+
+## How to Use
+
+### Files
 
 | File | Purpose |
 | --- | --- |
 | `stairs-ctrl/package.yaml` | Remote-ready ESPHome package (Ethernet build). |
 | `stairs-ctrl/stairs.yaml` | Local shim that includes the package and injects secrets. |
-| `includes/led_helpers_fcob.h` | Inline helper exposing `FcobProgressTracker` and math utilities reused by every effect. |
+| `includes/led_helpers_fcob.h` | Inline helper shared by all effects. |
 
-## Remote/Git Package
-
-Reference the package directly from ESPHome:
+### Remote/Git Package
 
 ```yaml
 substitutions:
@@ -36,64 +37,71 @@ packages:
     refresh: 30min
 ```
 
-### Key substitutions
+#### Key substitutions
 
 | Key | Description |
 | --- | --- |
-| `device_name`, `device_friendly_name`, `device_comment`, `device_version` | Hostname, HA name, and project metadata. |
-| `system_api_key`, `system_ota_password`, `system_timezone` | Security + timezone settings (override these!). |
-| `light_num_leds`, `light_brightness_r/g/b`, `light_led_map` | Hardware-specific LED settings (count, gamma/brightness, and mapping). |
+| `device_name`, `device_friendly_name`, `device_comment`, `device_version` | Hostname, HA name, metadata. |
+| `system_api_key`, `system_ota_password`, `system_timezone` | Security + timezone (override these!). |
+| `light_num_leds`, `light_brightness_r/g/b`, `light_led_map` | LED hardware settings and mapping. |
 | `temperature_sensor_dig`, `temperature_sensor_ssr` | Dallas sensor addresses. |
-| `ethernet_*` pins | LAN8720 wiring pins/addr/power. |
+| `ethernet_*` pins | LAN8720 wiring pins, addr, power. |
 
-All substitution keys in `stairs-ctrl/package.yaml` have defaults so you can start quickly—override whichever ones differ.
+All substitution keys in `package.yaml` have defaults so you can bootstrap quickly—override anything that differs from your hardware.
 
-## Controls & Sensors
+### Controls & Sensors
 
 | Entity | Type | Description |
 | --- | --- | --- |
-| `Snake (zig-zag rows)` | switch | Enables alternating row direction. |
-| `Subtle Wobble` | switch | Enables wobble overlay (hue drift). |
-| `Per-LED Time (ms)` | number | Travel time for one LED head. |
+| `Snake (zig-zag rows)` | switch | Enables zig-zag traversal per row. |
+| `Subtle Wobble` | switch | Toggles hue wobble overlay. |
+| `Per-LED Time (ms)` | number | Travel time for the head. |
 | `Fade Steps` | number | Sub-steps per LED (1–64). |
-| `Row Trigger Threshold` | number | Fraction of a row that must finish before the next row unlocks. |
+| `Row Trigger Threshold` | number | Fraction of a row required before the next row unlocks. |
 | `Wobble Strength (hue °)` | number | Hue delta applied by wobble. |
-| `Wobble Frequency (deg/s)` | number | Speed of the wobble animation. |
-| `Easing` | select | Linear / Cubic InOut / Quint InOut for the fractional head. |
-| `Digital LED Power Relay` | switch | Relay driving the 24 V supply. |
+| `Wobble Frequency (deg/s)` | number | Wobble speed. |
+| `Easing` | select | Linear / Cubic InOut / Quint InOut. |
+| `Digital LED Power Relay` | switch | Relay for the PSU. |
 
-## Effects
+### Usage
 
-All four effects are defined as `addressable_lambda` blocks that delegate to `ledhelpers::global_tracker()`:
+1. Remote deployments: add the `packages:` snippet, override sensitive substitutions, and provision via ESPHome Dashboard or CLI. Local testing: run `esphome run stairs-ctrl/stairs.yaml`, which already injects secrets.  
+2. In Home Assistant, select an effect, then tune Per-LED Time / Fade Steps / Row Threshold and toggle “Subtle Wobble” as you like.  
+3. Let OFF effects finish naturally to trigger the automatic turn-off (which also releases the relay).
+
+## Technical
+
+### Effects & Lambdas
+
+Four `addressable_lambda` effects call `ledhelpers::global_tracker()`:
 
 1. **FCOB Fill Up** – rows light bottom → top.  
 2. **FCOB Fill Down** – rows light top → bottom.  
 3. **FCOB Off Up** – rows fade off bottom → top.  
 4. **FCOB Off Down** – rows fade off top → bottom.
 
-Every lambda:
+Each lambda:
 
-- Binds the LED map, validates controls, and fills `RuntimeConfig`.
-- Applies the same wobble/amplitude/frequency values.
-- Calls `start_effect(...)` only when the direction or snake flag changes, so scan-in/out is seamless.
-- Calls `render_frame(...)` each update so wobble keeps running even after rows complete.
-- OFF effects schedule a one-shot `light.turn_off()` about 50 ms after every row clears, which gracefully triggers the existing relay automation.
+- Binds the LED map, validates inputs, and prepares a `RuntimeConfig`.
+- Shares wobble controls so all effects respond identically.
+- Calls `start_effect(...)` only when direction/snake state changes, which enables scan-in/out.
+- Calls `render_frame(...)` every update so wobble keeps running even when fully lit.
+- Schedules a one-shot `light.turn_off()` (about 50 ms later) when OFF effects finish.
 
-## Helper Highlights (`includes/led_helpers_fcob.h`)
+### Helper Highlights (`includes/led_helpers_fcob.h`)
 
-- `FcobProgressTracker` keeps per-row progress, enforces row-threshold gating, and handles catch-up timing (caps to 2× sub-step to avoid jitter).  
-- `RuntimeConfig` carries all runtime knobs, including wobble enable/amp/freq.  
-- `color_with_wobble()` samples HSV hue offsets per row/LED based on time, row index, LED index, and the configured amplitude/frequency.  
-- Shared helpers (map traversal, easing, clamp, resume scanning) are inline for minimal call overhead.
+- `FcobProgressTracker` tracks per-row progress, enforces row thresholds, and caps catch-up timing after slow frames.
+- `RuntimeConfig` bundles per-LED timing, fade steps, thresholds, snake flag, easing, and wobble parameters.
+- `color_with_wobble()`/`wobble_sample()` compute hue offsets per LED based on time, row, and amplitude.
+- Support helpers (mapping, easing, clamp, resume scanning) are inline for minimal overhead.
 
-## Usage
+## Mapping
 
-1. If using the package remotely, add the `packages:` snippet above and override the sensitive substitutions. For local testing, edit `stairs-ctrl/stairs.yaml` (which already injects secrets) and run `esphome run stairs-ctrl/stairs.yaml`.  
-2. Toggle between the four effects in HA, adjust Per-LED Time / Fade Steps / Threshold until the pacing fits, and enable “Subtle Wobble” for the hue drift overlay.  
-3. The relay switch still hard-powers the LED PSU whenever the light entity turns off.
+Mapping lets the firmware address LEDs in any logical order. The `light_led_map` substitution holds an array of arrays: each inner list represents a physical row (in order or reversed). By updating that map you can match serpentine wiring, matrices, or stair treads without touching the effect logic. The `Snake (zig-zag rows)` switch flips row traversal per index, so you can dynamically choose between straight or serpentine addressing.
 
 ## Notes
 
-- GPIO15 is used for the relay; ESPHome warns because it is a strapping pin—ensure external hardware does not force boot modes.  
-- Scan-in/out does not persist across reboots because the strip powers up dark; the helper only resumes while the device stays powered.  
-- Keep `per_led_ms` modest (10–30 ms) to avoid excessive frame rates; `Fade Steps` between 1–3 typically looks best on FCOB strips.  
+- GPIO15 drives the relay; ESPHome warns because it is a strapping pin—keep external pull-ups/downs minimal.  
+- GPIO5 powers the Ethernet PHY and is also a strapping pin; ensure it is not forced during boot.  
+- Scan-in/out does not persist across reboots because the strip starts dark; progress survives only while the controller stays powered.  
+- For smooth motion keep `per_led_ms` around 10–30 ms and `Fade Steps` between 1–3.  
