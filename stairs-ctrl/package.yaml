@@ -241,7 +241,7 @@ light:
 
   - platform: esp32_rmt_led_strip
     id: light_dig
-    name: Wall
+    name: Light
     rgb_order: RGB
     color_correct:
       - ${light_brightness_r}
