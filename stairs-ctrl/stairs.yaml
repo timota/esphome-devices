@@ -1,7 +1,0 @@
-substitutions:
-  system_api_key: !secret api_key
-  system_ota_password: !secret ota_password
-  system_timezone: !secret sys_time_zone
-
-packages:
-  stairs_ctrl: !include package.yaml

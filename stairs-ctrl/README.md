@@ -31,8 +31,8 @@ substitutions:
 
 packages:
   stairs_ctrl:
-    url: https://github.com/timota/_esphome
-    files: [stairs-ctrl/package.yaml]
+    url: https://github.com/timota/esphome-devices
+    files: [stairs-ctrl/package.yaml, stairs-ctrl/includes/led_helpers_fcob.h]
     ref: main
     refresh: 30min
 ```
