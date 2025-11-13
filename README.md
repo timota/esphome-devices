@@ -13,8 +13,40 @@ Features:
 
 | File | Purpose |
 | --- | --- |
-| `stairs.yaml` | ESPHome node definition, controls, light effects. |
+| `stairs-ctrl/package.yaml` | Remote-ready ESPHome package (Ethernet build). |
+| `stairs-ctrl/stairs.yaml` | Local shim that includes the package and injects secrets. |
 | `includes/led_helpers_fcob.h` | Inline helper exposing `FcobProgressTracker` and math utilities reused by every effect. |
+
+## Remote/Git Package
+
+Reference the package directly from ESPHome:
+
+```yaml
+substitutions:
+  device_name: stairs-ctrl-livingroom
+  system_api_key: !secret stairs_api_key
+  system_ota_password: !secret stairs_ota
+  system_timezone: "Europe/London"
+
+packages:
+  stairs_ctrl:
+    url: https://github.com/timota/_esphome
+    files: [stairs-ctrl/package.yaml]
+    ref: main
+    refresh: 30min
+```
+
+### Key substitutions
+
+| Key | Description |
+| --- | --- |
+| `device_name`, `device_friendly_name`, `device_comment`, `device_version` | Hostname, HA name, and project metadata. |
+| `system_api_key`, `system_ota_password`, `system_timezone` | Security + timezone settings (override these!). |
+| `light_num_leds`, `light_brightness_r/g/b`, `light_led_map` | Hardware-specific LED settings (count, gamma/brightness, and mapping). |
+| `temperature_sensor_dig`, `temperature_sensor_ssr` | Dallas sensor addresses. |
+| `ethernet_*` pins | LAN8720 wiring pins/addr/power. |
+
+All substitution keys in `stairs-ctrl/package.yaml` have defaults so you can start quickly—override whichever ones differ.
 
 ## Controls & Sensors
 
@@ -56,10 +88,9 @@ Every lambda:
 
 ## Usage
 
-1. Update `secrets.yaml` with Wi-Fi/API/OTA credentials.  
-2. Compile: `esphome run stairs.yaml`.  
-3. In Home Assistant (or ESPHome Dashboard) toggle the effect you want, adjust Per-LED Time / Fade Steps / Threshold until the gait fits your stairs, and enable “Subtle Wobble” if you want the continuous hue drift.  
-4. Use the relay switch if you need to hard-power-cycle the LED PSU before OTA flashing.
+1. If using the package remotely, add the `packages:` snippet above and override the sensitive substitutions. For local testing, edit `stairs-ctrl/stairs.yaml` (which already injects secrets) and run `esphome run stairs-ctrl/stairs.yaml`.  
+2. Toggle between the four effects in HA, adjust Per-LED Time / Fade Steps / Threshold until the pacing fits, and enable “Subtle Wobble” for the hue drift overlay.  
+3. The relay switch still hard-powers the LED PSU whenever the light entity turns off.
 
 ## Notes
 
