@@ -48,10 +48,8 @@ fcob_helper:
 
 external_components:
   - source:
-      type: git
-      url: https://github.com/timota/esphome-devices
-      ref: main
-      path: stairs-ctrl/custom_components
+      type: local
+      path: custom_components
  
 esp32:
   board: esp32dev

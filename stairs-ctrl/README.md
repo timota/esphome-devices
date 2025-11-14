@@ -16,9 +16,10 @@ ESPHome project for an ESP32-based FCOB strip controller. It focuses on “row-f
 
 | File | Purpose |
 | --- | --- |
-| `stairs-ctrl/package.yaml` | Remote-ready ESPHome package (Ethernet build). |
-| `stairs-ctrl/stairs.yaml` | Local shim that includes the package and injects secrets. |
-| `includes/led_helpers_fcob.h` | Inline helper shared by all effects. |
+| `stairs-ctrl/package.yaml` | Remote-ready ESPHome package (fetches helper via `external_components`). |
+| `stairs-ctrl/package-local.yaml` | Local-only variant referencing the bundled helper without cloning. |
+| `stairs-ctrl/example.yaml` | Sample local config consuming the package + substitutions. |
+| `stairs-ctrl/custom_components/fcob_helper` | Helper header exposed as a custom component. |
 
 ### Remote/Git Package
 
@@ -32,10 +33,12 @@ substitutions:
 packages:
   stairs_ctrl:
     url: https://github.com/timota/esphome-devices
-    files: [stairs-ctrl/package.yaml, stairs-ctrl/includes/led_helpers_fcob.h]
+    files: [stairs-ctrl/package.yaml]
     ref: main
     refresh: 30min
 ```
+
+For local/offline development (when this repo is already on disk), include `stairs-ctrl/package-local.yaml` instead so ESPHome reads the helper from the bundled `custom_components/` directory without cloning.
 
 #### Key substitutions
 
@@ -65,7 +68,7 @@ All substitution keys in `package.yaml` have defaults so you can bootstrap quick
 
 ### Usage
 
-1. Remote deployments: add the `packages:` snippet, override sensitive substitutions, and provision via ESPHome Dashboard or CLI. Local testing: run `esphome run stairs-ctrl/stairs.yaml`, which already injects secrets.  
+1. Remote deployments: add the `packages:` snippet, override sensitive substitutions, and provision via ESPHome Dashboard or CLI (the helper is fetched automatically through `external_components`). Local/offline testing: reference `package-local.yaml` (or run `esphome run stairs-ctrl/example.yaml`) so the helper is loaded from the checked-in `custom_components/` folder.  
 2. In Home Assistant, select an effect, then tune Per-LED Time / Fade Steps / Row Threshold and toggle “Subtle Wobble” as you like.  
 3. Let OFF effects finish naturally to trigger the automatic turn-off (which also releases the relay).
 
@@ -88,7 +91,7 @@ Each lambda:
 - Calls `render_frame(...)` every update so wobble keeps running even when fully lit.
 - Schedules a one-shot `light.turn_off()` (about 50 ms later) when OFF effects finish.
 
-### Helper Highlights (`includes/led_helpers_fcob.h`)
+### Helper Highlights (`fcob_helper/led_helpers_fcob.h`)
 
 - `FcobProgressTracker` tracks per-row progress, enforces row thresholds, and caps catch-up timing after slow frames.
 - `RuntimeConfig` bundles per-LED timing, fade steps, thresholds, snake flag, easing, and wobble parameters.
@@ -100,6 +103,7 @@ Each lambda:
 Mapping lets the firmware address LEDs in any logical order. The `light_led_map` substitution holds an array of arrays: each inner list represents a physical row (in order or reversed). By updating that map you can match serpentine wiring, matrices, or stair treads without touching the effect logic. The `Snake (zig-zag rows)` switch flips row traversal per index, so you can dynamically choose between straight or serpentine addressing.
 
 ## Notes
- 
+
+- GPIO15 drives the relay and GPIO5 powers the Ethernet PHY—both are ESP32 strapping pins, so avoid strong external pull-ups/downs at boot.  
 - Scan-in/out does not persist across reboots because the strip starts dark; progress survives only while the controller stays powered.  
 - For smooth motion keep `per_led_ms` around 10–30 ms and `Fade Steps` between 1–3.  

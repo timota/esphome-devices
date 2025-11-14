@@ -4,4 +4,6 @@
 /.esphome/
 secrets.yaml
 stairs-ctrl/secrets.yaml
+__pycache__/
+*.pyc
 old_*

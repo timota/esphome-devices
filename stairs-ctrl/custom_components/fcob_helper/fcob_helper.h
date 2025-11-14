@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "esphome/components/light/addressable_light.h"
+#include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
 namespace ledhelpers {
@@ -731,3 +732,15 @@ inline esphome::Color color_with_wobble(const BaseColorState &base_state,
 }
 
 }  // namespace ledhelpers
+
+namespace esphome {
+namespace fcob_helper {
+
+class FcobHelperComponent : public Component {
+ public:
+  void setup() override {}
+  void loop() override {}
+};
+
+}  // namespace fcob_helper
+}  // namespace esphome
