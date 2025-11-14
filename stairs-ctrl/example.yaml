@@ -1,8 +1,10 @@
 substitutions:
 
-  device_name: stairs-ctrl-real-eth
-  device_friendly_name: ${device_name}-strip
+  device_name: f1-r0-light-stairs
+  device_friendly_name: ${device_name}
   device_comment: "Stair controller"
+
+  sub_device_name: ${device_name}-strip
 
   system_api_key: !secret api_key
   system_ota_password: !secret ota_password

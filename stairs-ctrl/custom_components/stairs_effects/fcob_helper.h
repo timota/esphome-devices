@@ -734,13 +734,13 @@ inline esphome::Color color_with_wobble(const BaseColorState &base_state,
 }  // namespace ledhelpers
 
 namespace esphome {
-namespace fcob_helper {
+namespace stairs_effects {
 
-class FcobHelperComponent : public Component {
+class StairsEffectsComponent : public Component {
  public:
   void setup() override {}
   void loop() override {}
 };
 
-}  // namespace fcob_helper
+}  // namespace stairs_effects
 }  // namespace esphome

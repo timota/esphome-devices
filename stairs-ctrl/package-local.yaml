@@ -43,8 +43,8 @@ esphome:
     - id: light_strip
       name: ${device_friendly_name}
 
-fcob_helper:
-  id: fcob_helper_component
+stairs_effects:
+  id: stairs_effects_component
 
 external_components:
   - source:
