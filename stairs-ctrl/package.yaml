@@ -4,6 +4,8 @@ substitutions:
   device_comment: "Stairs controller"
   device_version: "0.1-rc1"
 
+  sub_device_name: digital-strip
+
   system_reboot_timeout: 60min
   system_log_level: INFO
   system_api_key: "00000000000000000000000000000000"
@@ -41,7 +43,7 @@ esphome:
 
   devices:
     - id: light_strip
-      name: ${device_friendly_name}
+      name: ${sub_device_name}
 
 fcob_helper:
   id: fcob_helper_component
