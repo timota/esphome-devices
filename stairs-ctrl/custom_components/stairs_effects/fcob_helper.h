@@ -748,6 +748,22 @@ class StairsEffectsComponent : public Component {
   void loop() override {}
 
   void set_led_map(globals::GlobalsComponent<led_map_t> *map) { led_map_holder_ = map; }
+
+  const led_map_t *led_map() const {
+    return led_map_holder_ != nullptr ? &led_map_holder_->value() : nullptr;
+  }
+
+ private:
+  globals::GlobalsComponent<led_map_t> *led_map_holder_{nullptr};
+};
+
+class StairsBaseEffect : public light::AddressableLightEffect {
+ public:
+  StairsBaseEffect(StairsEffectsComponent *parent,
+                   const std::string &name,
+                   ledhelpers::FlowMode flow,
+                   ledhelpers::RowOrder order,
+                   bool off_mode);
   void set_per_led_number(number::Number *num) { per_led_number_ = num; }
   void set_fade_steps_number(number::Number *num) { fade_steps_number_ = num; }
   void set_row_threshold_number(number::Number *num) { row_threshold_number_ = num; }
@@ -758,32 +774,6 @@ class StairsEffectsComponent : public Component {
   void set_easing_select(select::Select *sel) { easing_select_ = sel; }
   void set_shutdown_delay(uint32_t delay_ms) { shutdown_delay_ms_ = delay_ms; }
 
-  const led_map_t *led_map() const {
-    return led_map_holder_ != nullptr ? &led_map_holder_->value() : nullptr;
-  }
-  ledhelpers::RuntimeConfig build_runtime_config() const;
-  uint32_t shutdown_delay_ms() const { return shutdown_delay_ms_; }
-
- private:
-  globals::GlobalsComponent<led_map_t> *led_map_holder_{nullptr};
-  number::Number *per_led_number_{nullptr};
-  number::Number *fade_steps_number_{nullptr};
-  number::Number *row_threshold_number_{nullptr};
-  switch_::Switch *snake_switch_{nullptr};
-  switch_::Switch *wobble_switch_{nullptr};
-  number::Number *wobble_strength_number_{nullptr};
-  number::Number *wobble_frequency_number_{nullptr};
-  select::Select *easing_select_{nullptr};
-  uint32_t shutdown_delay_ms_{50};
-};
-
-class StairsBaseEffect : public light::AddressableLightEffect {
- public:
-  StairsBaseEffect(StairsEffectsComponent *parent,
-                   const std::string &name,
-                   ledhelpers::FlowMode flow,
-                   ledhelpers::RowOrder order,
-                   bool off_mode);
   void start() override {
     this->initialized_ = false;
     this->shutdown_scheduled_ = false;
@@ -802,6 +792,18 @@ class StairsBaseEffect : public light::AddressableLightEffect {
   bool snake_state_{false};
   bool shutdown_scheduled_{false};
   uint32_t shutdown_at_{0};
+
+  number::Number *per_led_number_{nullptr};
+  number::Number *fade_steps_number_{nullptr};
+  number::Number *row_threshold_number_{nullptr};
+  switch_::Switch *snake_switch_{nullptr};
+  switch_::Switch *wobble_switch_{nullptr};
+  number::Number *wobble_strength_number_{nullptr};
+  number::Number *wobble_frequency_number_{nullptr};
+  select::Select *easing_select_{nullptr};
+  uint32_t shutdown_delay_ms_{50};
+
+  ledhelpers::RuntimeConfig build_runtime_config() const;
 };
 
 class StairsFillUpEffect : public StairsBaseEffect {
@@ -826,7 +828,7 @@ class StairsOffDownEffect : public StairsBaseEffect {
 
 // ---- Inline implementations ----
 
-inline ledhelpers::RuntimeConfig StairsEffectsComponent::build_runtime_config() const {
+inline ledhelpers::RuntimeConfig StairsBaseEffect::build_runtime_config() const {
   ledhelpers::RuntimeConfig cfg;
   if (per_led_number_ != nullptr) {
     float val = per_led_number_->state;
@@ -889,7 +891,7 @@ inline void StairsBaseEffect::apply(light::AddressableLight &it, const Color &cu
   }
 
   tracker_.bind_map(map);
-  auto cfg = parent_->build_runtime_config();
+  auto cfg = this->build_runtime_config();
   bool snake_now = cfg.snake;
   bool restart = false;
   if (!initialized_ || snake_now != snake_state_) restart = true;
@@ -915,7 +917,7 @@ inline void StairsBaseEffect::apply(light::AddressableLight &it, const Color &cu
 
   if (!shutdown_scheduled_) {
     shutdown_scheduled_ = true;
-    shutdown_at_ = millis() + parent_->shutdown_delay_ms();
+    shutdown_at_ = millis() + shutdown_delay_ms_;
     return;
   }
 

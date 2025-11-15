@@ -44,28 +44,41 @@ For local/offline development (when this repo is already on disk), include `stai
 
 ```yaml
 stairs_effects:
-  id: stairs_effects_component
-  led_map_id: map
-  per_led_number_id: per_led_ms
-  fade_steps_number_id: fade_steps_num
-  row_threshold_number_id: row_trigger_threshold
-  snake_switch_id: snake_mode
-  wobble_switch_id: subtle_wobble_enable
-  wobble_strength_number_id: subtle_hue_amp
-  wobble_frequency_number_id: wobble_freq_deg
-  easing_select_id: easing_mode
-  shutdown_delay: 50ms
+  - id: stairs_effects_component
+    led_map_id: map
+  - id: stairs_effects_component_upper
+    led_map_id: upstairs_map
 
 light:
   effects:
-    - stairs_effects.fill_up:
+    - stairs_effects.fill_up: &stairs_defaults
         component_id: stairs_effects_component
+        per_led_number_id: per_led_ms
+        fade_steps_number_id: fade_steps_num
+        row_threshold_number_id: row_trigger_threshold
+        snake_switch_id: snake_mode
+        wobble_switch_id: subtle_wobble_enable
+        wobble_strength_number_id: subtle_hue_amp
+        wobble_frequency_number_id: wobble_freq_deg
+        easing_select_id: easing_mode
+        shutdown_delay: 50ms
     - stairs_effects.fill_down:
-        component_id: stairs_effects_component
+        <<: *stairs_defaults
     - stairs_effects.off_up:
-        component_id: stairs_effects_component
+        <<: *stairs_defaults
     - stairs_effects.off_down:
-        component_id: stairs_effects_component
+        <<: *stairs_defaults
+    - stairs_effects.fill_up:
+        component_id: stairs_effects_component_upper
+        per_led_number_id: per_led_ms_upper
+        fade_steps_number_id: fade_steps_num_upper
+        row_threshold_number_id: row_trigger_threshold_upper
+        snake_switch_id: snake_mode_upper
+        wobble_switch_id: subtle_wobble_enable_upper
+        wobble_strength_number_id: subtle_hue_amp_upper
+        wobble_frequency_number_id: wobble_freq_deg_upper
+        easing_select_id: easing_mode_upper
+        shutdown_delay: 100ms
 ```
 
 #### Key substitutions
@@ -111,7 +124,7 @@ Four built-in effects are exposed via `stairs_effects.fill_*` / `stairs_effects.
 3. **Stairs Off Up** – rows fade off bottom → top (auto power-down).  
 4. **Stairs Off Down** – rows fade off top → bottom (auto power-down).
 
-Each effect reuses `FcobProgressTracker` and pulls live settings from the component, so toggling switches/numbers updates the animation without editing YAML.
+Each effect owns its own `FcobProgressTracker` plus pointers to the runtime numbers/selects/switches provided in its YAML block, so you can run multiple maps (or duplicated effect sets) side by side with different controls.
 
 ### Helper Highlights (`fcob_helper/led_helpers_fcob.h`)
 

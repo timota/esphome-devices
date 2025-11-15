@@ -30,10 +30,25 @@ CONF_EASING_SELECT_ID = "easing_select_id"
 CONF_SHUTDOWN_DELAY = "shutdown_delay"
 CONF_COMPONENT_ID = "component_id"
 
-CONFIG_SCHEMA = cv.Schema(
+COMPONENT_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StairsEffectsComponent),
         cv.Required(CONF_LED_MAP_ID): cv.use_id(globals_component.GlobalsComponent),
+    }
+).extend({})
+
+CONFIG_SCHEMA = cv.ensure_list(COMPONENT_SCHEMA)
+
+async def to_code(config):
+    for conf in config:
+        var = cg.new_Pvariable(conf[CONF_ID])
+        await cg.register_component(var, conf)
+
+        led_map_var = await cg.get_variable(conf[CONF_LED_MAP_ID])
+        cg.add(var.set_led_map(led_map_var))
+BASE_EFFECT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_COMPONENT_ID): cv.use_id(StairsEffectsComponent),
         cv.Required(CONF_PER_LED_ID): cv.use_id(number.Number),
         cv.Required(CONF_FADE_STEPS_ID): cv.use_id(number.Number),
         cv.Required(CONF_ROW_THRESHOLD_ID): cv.use_id(number.Number),
@@ -44,14 +59,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_EASING_SELECT_ID): cv.use_id(select.Select),
         cv.Optional(CONF_SHUTDOWN_DELAY, default="50ms"): cv.positive_time_period_milliseconds,
     }
-).extend({})
+)
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
 
-    led_map_var = await cg.get_variable(config[CONF_LED_MAP_ID])
-    cg.add(var.set_led_map(led_map_var))
+async def _configure_effect(effect_var, config):
     per_led = await cg.get_variable(config[CONF_PER_LED_ID])
     fade_steps = await cg.get_variable(config[CONF_FADE_STEPS_ID])
     row_thr = await cg.get_variable(config[CONF_ROW_THRESHOLD_ID])
@@ -61,19 +72,15 @@ async def to_code(config):
     wobble_freq = await cg.get_variable(config[CONF_WOBBLE_FREQ_ID])
     easing_sel = await cg.get_variable(config[CONF_EASING_SELECT_ID])
 
-    cg.add(var.set_per_led_number(per_led))
-    cg.add(var.set_fade_steps_number(fade_steps))
-    cg.add(var.set_row_threshold_number(row_thr))
-    cg.add(var.set_snake_switch(snake_sw))
-    cg.add(var.set_wobble_switch(wobble_sw))
-    cg.add(var.set_wobble_strength_number(wobble_strength))
-    cg.add(var.set_wobble_frequency_number(wobble_freq))
-    cg.add(var.set_easing_select(easing_sel))
-    cg.add(var.set_shutdown_delay(config[CONF_SHUTDOWN_DELAY].total_milliseconds))
-
-BASE_EFFECT_SCHEMA = cv.Schema(
-    {cv.Required(CONF_COMPONENT_ID): cv.use_id(StairsEffectsComponent)}
-)
+    cg.add(effect_var.set_per_led_number(per_led))
+    cg.add(effect_var.set_fade_steps_number(fade_steps))
+    cg.add(effect_var.set_row_threshold_number(row_thr))
+    cg.add(effect_var.set_snake_switch(snake_sw))
+    cg.add(effect_var.set_wobble_switch(wobble_sw))
+    cg.add(effect_var.set_wobble_strength_number(wobble_strength))
+    cg.add(effect_var.set_wobble_frequency_number(wobble_freq))
+    cg.add(effect_var.set_easing_select(easing_sel))
+    cg.add(effect_var.set_shutdown_delay(config[CONF_SHUTDOWN_DELAY].total_milliseconds))
 
 
 @register_addressable_effect(
@@ -81,7 +88,9 @@ BASE_EFFECT_SCHEMA = cv.Schema(
 )
 async def stairs_effects_fill_up_to_code(config, effect_id):
     parent = await cg.get_variable(config[CONF_COMPONENT_ID])
-    return cg.new_Pvariable(effect_id, parent, config[CONF_NAME])
+    effect = cg.new_Pvariable(effect_id, parent, config[CONF_NAME])
+    await _configure_effect(effect, config)
+    return effect
 
 
 @register_addressable_effect(
@@ -89,7 +98,9 @@ async def stairs_effects_fill_up_to_code(config, effect_id):
 )
 async def stairs_effects_fill_down_to_code(config, effect_id):
     parent = await cg.get_variable(config[CONF_COMPONENT_ID])
-    return cg.new_Pvariable(effect_id, parent, config[CONF_NAME])
+    effect = cg.new_Pvariable(effect_id, parent, config[CONF_NAME])
+    await _configure_effect(effect, config)
+    return effect
 
 
 @register_addressable_effect(
@@ -97,7 +108,9 @@ async def stairs_effects_fill_down_to_code(config, effect_id):
 )
 async def stairs_effects_off_up_to_code(config, effect_id):
     parent = await cg.get_variable(config[CONF_COMPONENT_ID])
-    return cg.new_Pvariable(effect_id, parent, config[CONF_NAME])
+    effect = cg.new_Pvariable(effect_id, parent, config[CONF_NAME])
+    await _configure_effect(effect, config)
+    return effect
 
 
 @register_addressable_effect(
@@ -105,4 +118,6 @@ async def stairs_effects_off_up_to_code(config, effect_id):
 )
 async def stairs_effects_off_down_to_code(config, effect_id):
     parent = await cg.get_variable(config[CONF_COMPONENT_ID])
-    return cg.new_Pvariable(effect_id, parent, config[CONF_NAME])
+    effect = cg.new_Pvariable(effect_id, parent, config[CONF_NAME])
+    await _configure_effect(effect, config)
+    return effect
