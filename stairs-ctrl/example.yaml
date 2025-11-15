@@ -6,6 +6,8 @@ substitutions:
 
   sub_device_name: ${device_name}-strip
 
+  system_log_level: INFO
+
   system_api_key: !secret api_key
   system_ota_password: !secret ota_password
   system_timezone: !secret sys_time_zone

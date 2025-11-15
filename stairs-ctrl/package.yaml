@@ -157,6 +157,8 @@ switch:
 
   - platform: factory_reset
     name: Restart with Factory Default Settings
+    entity_category: diagnostic
+    disabled_by_default: True
 
   - platform: template
     name: "Snake (zig-zag rows)"
