@@ -46,17 +46,16 @@ esphome:
       name: ${sub_device_name}
 
 stairs_effects:
-  id: stairs_effects_component
-  led_map_id: map
-  per_led_number_id: per_led_ms
-  fade_steps_number_id: fade_steps_num
-  row_threshold_number_id: row_trigger_threshold
-  snake_switch_id: snake_mode
-  wobble_switch_id: subtle_wobble_enable
-  wobble_strength_number_id: subtle_hue_amp
-  wobble_frequency_number_id: wobble_freq_deg
-  easing_select_id: easing_mode
-  shutdown_delay: 50ms
+  - id: stairs_effects_component
+    led_map_id: map
+    led_count: ${light_num_leds}
+    map_valid_binary_sensor:
+      name: "LED Map Valid"
+      entity_category: diagnostic
+    map_status_text_sensor:
+      name: "LED Map Status"
+      entity_category: diagnostic
+      icon: mdi:list-status
 
 external_components:
   - source:
@@ -283,11 +282,20 @@ light:
       then:
         - switch.turn_off: dig_power
     effects:
-      - stairs_effects.fill_up:
+      - stairs_effects.fill_up: &stairs_effects_controls
           component_id: stairs_effects_component
+          per_led_number_id: per_led_ms
+          fade_steps_number_id: fade_steps_num
+          row_threshold_number_id: row_trigger_threshold
+          snake_switch_id: snake_mode
+          wobble_switch_id: subtle_wobble_enable
+          wobble_strength_number_id: subtle_hue_amp
+          wobble_frequency_number_id: wobble_freq_deg
+          easing_select_id: easing_mode
+          shutdown_delay: 50ms
       - stairs_effects.fill_down:
-          component_id: stairs_effects_component
+          <<: *stairs_effects_controls
       - stairs_effects.off_up:
-          component_id: stairs_effects_component
+          <<: *stairs_effects_controls
       - stairs_effects.off_down:
-          component_id: stairs_effects_component
+          <<: *stairs_effects_controls
