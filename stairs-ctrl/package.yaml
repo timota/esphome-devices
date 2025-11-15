@@ -2,7 +2,7 @@ substitutions:
   device_name: stairs-ctrl
   device_friendly_name: stairs-ctrl-strip
   device_comment: "Stairs controller"
-  device_version: "0.1-rc1"
+  device_version: "0.2"
 
   sub_device_name: digital-strip
 
