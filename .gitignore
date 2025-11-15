@@ -7,3 +7,4 @@ stairs-ctrl/secrets.yaml
 __pycache__/
 *.pyc
 old_*
+.pio-core
