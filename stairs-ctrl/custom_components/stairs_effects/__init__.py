@@ -9,6 +9,7 @@ from esphome.components.light.effects import register_addressable_effect
 from esphome.components.light.types import AddressableLightEffect
 
 CODEOWNERS = ["@timota"]
+AUTO_LOAD = ["binary_sensor", "text_sensor"]
 
 stairs_effects_ns = cg.esphome_ns.namespace("stairs_effects")
 
