@@ -4,7 +4,7 @@ from esphome.const import CONF_ID, CONF_NAME
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import globals as globals_component
-from esphome.components import number, select, switch
+from esphome.components import light, number, select, switch
 from esphome.components.light.effects import register_addressable_effect
 from esphome.components.light.types import AddressableLightEffect
 
@@ -18,7 +18,7 @@ StairsFillDownEffect = stairs_effects_ns.class_("StairsFillDownEffect", Addressa
 StairsOffUpEffect = stairs_effects_ns.class_("StairsOffUpEffect", AddressableLightEffect)
 StairsOffDownEffect = stairs_effects_ns.class_("StairsOffDownEffect", AddressableLightEffect)
 
-CONF_MAP_ID = "map_id"
+CONF_LED_MAP_ID = "led_map_id"
 CONF_PER_LED_ID = "per_led_number_id"
 CONF_FADE_STEPS_ID = "fade_steps_number_id"
 CONF_ROW_THRESHOLD_ID = "row_threshold_number_id"
@@ -33,7 +33,7 @@ CONF_COMPONENT_ID = "component_id"
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StairsEffectsComponent),
-        cv.Required(CONF_MAP_ID): cv.use_id(globals_component.GlobalsComponent),
+        cv.Required(CONF_LED_MAP_ID): cv.use_id(globals_component.GlobalsComponent),
         cv.Required(CONF_PER_LED_ID): cv.use_id(number.Number),
         cv.Required(CONF_FADE_STEPS_ID): cv.use_id(number.Number),
         cv.Required(CONF_ROW_THRESHOLD_ID): cv.use_id(number.Number),
@@ -50,8 +50,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    map_var = await cg.get_variable(config[CONF_MAP_ID])
-    cg.add(var.set_led_map(map_var))
+    led_map_var = await cg.get_variable(config[CONF_LED_MAP_ID])
+    cg.add(var.set_led_map(led_map_var))
     per_led = await cg.get_variable(config[CONF_PER_LED_ID])
     fade_steps = await cg.get_variable(config[CONF_FADE_STEPS_ID])
     row_thr = await cg.get_variable(config[CONF_ROW_THRESHOLD_ID])
@@ -71,7 +71,9 @@ async def to_code(config):
     cg.add(var.set_easing_select(easing_sel))
     cg.add(var.set_shutdown_delay(config[CONF_SHUTDOWN_DELAY].total_milliseconds))
 
-BASE_EFFECT_SCHEMA = cv.Schema({cv.Required(CONF_COMPONENT_ID): cv.use_id(StairsEffectsComponent)})
+BASE_EFFECT_SCHEMA = cv.Schema(
+    {cv.Required(CONF_COMPONENT_ID): cv.use_id(StairsEffectsComponent)}
+)
 
 
 @register_addressable_effect(

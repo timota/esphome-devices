@@ -747,7 +747,7 @@ class StairsEffectsComponent : public Component {
   void setup() override {}
   void loop() override {}
 
-  void set_led_map(globals::GlobalsComponent<led_map_t> *map) { map_holder_ = map; }
+  void set_led_map(globals::GlobalsComponent<led_map_t> *map) { led_map_holder_ = map; }
   void set_per_led_number(number::Number *num) { per_led_number_ = num; }
   void set_fade_steps_number(number::Number *num) { fade_steps_number_ = num; }
   void set_row_threshold_number(number::Number *num) { row_threshold_number_ = num; }
@@ -759,13 +759,13 @@ class StairsEffectsComponent : public Component {
   void set_shutdown_delay(uint32_t delay_ms) { shutdown_delay_ms_ = delay_ms; }
 
   const led_map_t *led_map() const {
-    return map_holder_ != nullptr ? &map_holder_->value() : nullptr;
+    return led_map_holder_ != nullptr ? &led_map_holder_->value() : nullptr;
   }
   ledhelpers::RuntimeConfig build_runtime_config() const;
   uint32_t shutdown_delay_ms() const { return shutdown_delay_ms_; }
 
  private:
-  globals::GlobalsComponent<led_map_t> *map_holder_{nullptr};
+  globals::GlobalsComponent<led_map_t> *led_map_holder_{nullptr};
   number::Number *per_led_number_{nullptr};
   number::Number *fade_steps_number_{nullptr};
   number::Number *row_threshold_number_{nullptr};

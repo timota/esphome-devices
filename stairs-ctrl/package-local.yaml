@@ -45,7 +45,7 @@ esphome:
 
 stairs_effects:
   id: stairs_effects_component
-  map_id: map
+  led_map_id: map
   per_led_number_id: per_led_ms
   fade_steps_number_id: fade_steps_num
   row_threshold_number_id: row_trigger_threshold
@@ -153,6 +153,9 @@ switch:
 
   - platform: factory_reset
     name: Restart with Factory Default Settings
+    entity_category: diagnostic
+    disabled_by_default: True
+
 
   - platform: template
     name: "Snake (zig-zag rows)"

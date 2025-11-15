@@ -45,7 +45,7 @@ For local/offline development (when this repo is already on disk), include `stai
 ```yaml
 stairs_effects:
   id: stairs_effects_component
-  map_id: map
+  led_map_id: map
   per_led_number_id: per_led_ms
   fade_steps_number_id: fade_steps_num
   row_threshold_number_id: row_trigger_threshold
