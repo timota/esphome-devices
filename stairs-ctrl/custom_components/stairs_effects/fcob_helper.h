@@ -11,16 +11,30 @@
 #include <unordered_set>
 #include <vector>
 
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/globals/globals_component.h"
 #include "esphome/components/light/addressable_light.h"
 #include "esphome/components/number/number.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/switch/switch.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
+#endif
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+
+namespace esphome {
+namespace binary_sensor {
+class BinarySensor;
+}
+namespace text_sensor {
+class TextSensor;
+}
+}  // namespace esphome
 
 namespace ledhelpers {
 
@@ -952,8 +966,12 @@ inline void StairsEffectsComponent::validate_map() {
 }
 
 inline void StairsEffectsComponent::publish_map_status() {
+#ifdef USE_BINARY_SENSOR
   if (map_valid_sensor_ != nullptr) map_valid_sensor_->publish_state(map_checked_ && map_valid_);
+#endif
+#ifdef USE_TEXT_SENSOR
   if (map_status_sensor_ != nullptr) map_status_sensor_->publish_state(map_status_);
+#endif
 }
 
 inline ledhelpers::RuntimeConfig StairsBaseEffect::build_runtime_config() const {
