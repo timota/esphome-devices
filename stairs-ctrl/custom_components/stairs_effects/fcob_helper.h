@@ -784,6 +784,11 @@ class StairsBaseEffect : public light::AddressableLightEffect {
                    ledhelpers::FlowMode flow,
                    ledhelpers::RowOrder order,
                    bool off_mode);
+  void start() override {
+    this->initialized_ = false;
+    this->shutdown_scheduled_ = false;
+    light::AddressableLightEffect::start();
+  }
   void apply(light::AddressableLight &it, const Color &current_color) override;
 
  protected:
@@ -898,6 +903,8 @@ inline void StairsBaseEffect::apply(light::AddressableLight &it, const Color &cu
   }
 
   tracker_.render_frame(it, cfg, current_color, millis());
+
+  it.schedule_show();
 
   if (!off_mode_) return;
 
