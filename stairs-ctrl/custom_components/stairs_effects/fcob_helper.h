@@ -780,6 +780,7 @@ class StairsEffectsComponent : public Component {
 class StairsBaseEffect : public light::AddressableLightEffect {
  public:
   StairsBaseEffect(StairsEffectsComponent *parent,
+                   const std::string &name,
                    ledhelpers::FlowMode flow,
                    ledhelpers::RowOrder order,
                    bool off_mode);
@@ -800,22 +801,22 @@ class StairsBaseEffect : public light::AddressableLightEffect {
 
 class StairsFillUpEffect : public StairsBaseEffect {
  public:
-  explicit StairsFillUpEffect(StairsEffectsComponent *parent);
+  StairsFillUpEffect(StairsEffectsComponent *parent, const std::string &name);
 };
 
 class StairsFillDownEffect : public StairsBaseEffect {
  public:
-  explicit StairsFillDownEffect(StairsEffectsComponent *parent);
+  StairsFillDownEffect(StairsEffectsComponent *parent, const std::string &name);
 };
 
 class StairsOffUpEffect : public StairsBaseEffect {
  public:
-  explicit StairsOffUpEffect(StairsEffectsComponent *parent);
+  StairsOffUpEffect(StairsEffectsComponent *parent, const std::string &name);
 };
 
 class StairsOffDownEffect : public StairsBaseEffect {
  public:
-  explicit StairsOffDownEffect(StairsEffectsComponent *parent);
+  StairsOffDownEffect(StairsEffectsComponent *parent, const std::string &name);
 };
 
 // ---- Inline implementations ----
@@ -853,22 +854,27 @@ inline ledhelpers::RuntimeConfig StairsEffectsComponent::build_runtime_config() 
 }
 
 inline StairsBaseEffect::StairsBaseEffect(StairsEffectsComponent *parent,
+                                          const std::string &name,
                                           ledhelpers::FlowMode flow,
                                           ledhelpers::RowOrder order,
                                           bool off_mode)
-    : parent_(parent), flow_(flow), order_(order), off_mode_(off_mode) {}
+    : light::AddressableLightEffect(name),
+      parent_(parent),
+      flow_(flow),
+      order_(order),
+      off_mode_(off_mode) {}
 
-inline StairsFillUpEffect::StairsFillUpEffect(StairsEffectsComponent *parent)
-    : StairsBaseEffect(parent, ledhelpers::FlowMode::Fill, ledhelpers::RowOrder::BottomToTop, false) {}
+inline StairsFillUpEffect::StairsFillUpEffect(StairsEffectsComponent *parent, const std::string &name)
+    : StairsBaseEffect(parent, name, ledhelpers::FlowMode::Fill, ledhelpers::RowOrder::BottomToTop, false) {}
 
-inline StairsFillDownEffect::StairsFillDownEffect(StairsEffectsComponent *parent)
-    : StairsBaseEffect(parent, ledhelpers::FlowMode::Fill, ledhelpers::RowOrder::TopToBottom, false) {}
+inline StairsFillDownEffect::StairsFillDownEffect(StairsEffectsComponent *parent, const std::string &name)
+    : StairsBaseEffect(parent, name, ledhelpers::FlowMode::Fill, ledhelpers::RowOrder::TopToBottom, false) {}
 
-inline StairsOffUpEffect::StairsOffUpEffect(StairsEffectsComponent *parent)
-    : StairsBaseEffect(parent, ledhelpers::FlowMode::Off, ledhelpers::RowOrder::BottomToTop, true) {}
+inline StairsOffUpEffect::StairsOffUpEffect(StairsEffectsComponent *parent, const std::string &name)
+    : StairsBaseEffect(parent, name, ledhelpers::FlowMode::Off, ledhelpers::RowOrder::BottomToTop, true) {}
 
-inline StairsOffDownEffect::StairsOffDownEffect(StairsEffectsComponent *parent)
-    : StairsBaseEffect(parent, ledhelpers::FlowMode::Off, ledhelpers::RowOrder::TopToBottom, true) {}
+inline StairsOffDownEffect::StairsOffDownEffect(StairsEffectsComponent *parent, const std::string &name)
+    : StairsBaseEffect(parent, name, ledhelpers::FlowMode::Off, ledhelpers::RowOrder::TopToBottom, true) {}
 
 inline void StairsBaseEffect::apply(light::AddressableLight &it, const Color &current_color) {
   const auto *map = parent_->led_map();
@@ -907,7 +913,8 @@ inline void StairsBaseEffect::apply(light::AddressableLight &it, const Color &cu
   }
 
   if ((int32_t)(millis() - shutdown_at_) >= 0) {
-    auto call = it.turn_off();
+    auto call = this->state_->make_call();
+    call.set_state(false);
     call.perform();
     shutdown_scheduled_ = false;
   }

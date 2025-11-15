@@ -1,6 +1,6 @@
 """Stairs effects component exposing the FCOB helper."""
 
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_NAME
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import globals as globals_component
@@ -50,7 +50,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    map_var = await globals_component.get_variable(config[CONF_MAP_ID])
+    map_var = await cg.get_variable(config[CONF_MAP_ID])
     cg.add(var.set_led_map(map_var))
     per_led = await cg.get_variable(config[CONF_PER_LED_ID])
     fade_steps = await cg.get_variable(config[CONF_FADE_STEPS_ID])
@@ -79,7 +79,7 @@ BASE_EFFECT_SCHEMA = cv.Schema({cv.Required(CONF_COMPONENT_ID): cv.use_id(Stairs
 )
 async def stairs_effects_fill_up_to_code(config, effect_id):
     parent = await cg.get_variable(config[CONF_COMPONENT_ID])
-    return cg.new_Pvariable(effect_id, parent)
+    return cg.new_Pvariable(effect_id, parent, config[CONF_NAME])
 
 
 @register_addressable_effect(
@@ -87,7 +87,7 @@ async def stairs_effects_fill_up_to_code(config, effect_id):
 )
 async def stairs_effects_fill_down_to_code(config, effect_id):
     parent = await cg.get_variable(config[CONF_COMPONENT_ID])
-    return cg.new_Pvariable(effect_id, parent)
+    return cg.new_Pvariable(effect_id, parent, config[CONF_NAME])
 
 
 @register_addressable_effect(
@@ -95,7 +95,7 @@ async def stairs_effects_fill_down_to_code(config, effect_id):
 )
 async def stairs_effects_off_up_to_code(config, effect_id):
     parent = await cg.get_variable(config[CONF_COMPONENT_ID])
-    return cg.new_Pvariable(effect_id, parent)
+    return cg.new_Pvariable(effect_id, parent, config[CONF_NAME])
 
 
 @register_addressable_effect(
@@ -103,4 +103,4 @@ async def stairs_effects_off_up_to_code(config, effect_id):
 )
 async def stairs_effects_off_down_to_code(config, effect_id):
     parent = await cg.get_variable(config[CONF_COMPONENT_ID])
-    return cg.new_Pvariable(effect_id, parent)
+    return cg.new_Pvariable(effect_id, parent, config[CONF_NAME])
