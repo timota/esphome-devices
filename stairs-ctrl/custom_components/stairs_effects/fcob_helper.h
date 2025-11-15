@@ -7,7 +7,11 @@
 #include <optional>
 #include <vector>
 
+#include "esphome/components/globals/globals_component.h"
 #include "esphome/components/light/addressable_light.h"
+#include "esphome/components/number/number.h"
+#include "esphome/components/select/select.h"
+#include "esphome/components/switch/switch.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
@@ -736,11 +740,178 @@ inline esphome::Color color_with_wobble(const BaseColorState &base_state,
 namespace esphome {
 namespace stairs_effects {
 
+using led_map_t = std::vector<std::vector<int>>;
+
 class StairsEffectsComponent : public Component {
  public:
   void setup() override {}
   void loop() override {}
+
+  void set_led_map(globals::GlobalsComponent<led_map_t> *map) { map_holder_ = map; }
+  void set_per_led_number(number::Number *num) { per_led_number_ = num; }
+  void set_fade_steps_number(number::Number *num) { fade_steps_number_ = num; }
+  void set_row_threshold_number(number::Number *num) { row_threshold_number_ = num; }
+  void set_snake_switch(switch_::Switch *sw) { snake_switch_ = sw; }
+  void set_wobble_switch(switch_::Switch *sw) { wobble_switch_ = sw; }
+  void set_wobble_strength_number(number::Number *num) { wobble_strength_number_ = num; }
+  void set_wobble_frequency_number(number::Number *num) { wobble_frequency_number_ = num; }
+  void set_easing_select(select::Select *sel) { easing_select_ = sel; }
+  void set_shutdown_delay(uint32_t delay_ms) { shutdown_delay_ms_ = delay_ms; }
+
+  const led_map_t *led_map() const {
+    return map_holder_ != nullptr ? &map_holder_->value() : nullptr;
+  }
+  ledhelpers::RuntimeConfig build_runtime_config() const;
+  uint32_t shutdown_delay_ms() const { return shutdown_delay_ms_; }
+
+ private:
+  globals::GlobalsComponent<led_map_t> *map_holder_{nullptr};
+  number::Number *per_led_number_{nullptr};
+  number::Number *fade_steps_number_{nullptr};
+  number::Number *row_threshold_number_{nullptr};
+  switch_::Switch *snake_switch_{nullptr};
+  switch_::Switch *wobble_switch_{nullptr};
+  number::Number *wobble_strength_number_{nullptr};
+  number::Number *wobble_frequency_number_{nullptr};
+  select::Select *easing_select_{nullptr};
+  uint32_t shutdown_delay_ms_{50};
 };
+
+class StairsBaseEffect : public light::AddressableLightEffect {
+ public:
+  StairsBaseEffect(StairsEffectsComponent *parent,
+                   ledhelpers::FlowMode flow,
+                   ledhelpers::RowOrder order,
+                   bool off_mode);
+  void apply(light::AddressableLight &it, const Color &current_color) override;
+
+ protected:
+  StairsEffectsComponent *parent_;
+  ledhelpers::FlowMode flow_;
+  ledhelpers::RowOrder order_;
+  bool off_mode_;
+  ledhelpers::FcobProgressTracker tracker_;
+
+  bool initialized_{false};
+  bool snake_state_{false};
+  bool shutdown_scheduled_{false};
+  uint32_t shutdown_at_{0};
+};
+
+class StairsFillUpEffect : public StairsBaseEffect {
+ public:
+  explicit StairsFillUpEffect(StairsEffectsComponent *parent);
+};
+
+class StairsFillDownEffect : public StairsBaseEffect {
+ public:
+  explicit StairsFillDownEffect(StairsEffectsComponent *parent);
+};
+
+class StairsOffUpEffect : public StairsBaseEffect {
+ public:
+  explicit StairsOffUpEffect(StairsEffectsComponent *parent);
+};
+
+class StairsOffDownEffect : public StairsBaseEffect {
+ public:
+  explicit StairsOffDownEffect(StairsEffectsComponent *parent);
+};
+
+// ---- Inline implementations ----
+
+inline ledhelpers::RuntimeConfig StairsEffectsComponent::build_runtime_config() const {
+  ledhelpers::RuntimeConfig cfg;
+  if (per_led_number_ != nullptr) {
+    float val = per_led_number_->state;
+    if (val < 1.0f) val = 1.0f;
+    cfg.per_led_ms = static_cast<uint32_t>(val);
+  }
+  if (fade_steps_number_ != nullptr) {
+    int steps = static_cast<int>(fade_steps_number_->state);
+    if (steps <= 0) steps = 1;
+    cfg.fade_steps = steps;
+  }
+  if (row_threshold_number_ != nullptr) {
+    float thr = row_threshold_number_->state;
+    if (thr < 0.0f) thr = 0.0f;
+    if (thr > 1.0f) thr = 1.0f;
+    cfg.row_threshold = thr;
+  }
+  cfg.snake = snake_switch_ != nullptr ? snake_switch_->state : false;
+  cfg.wobble_enabled = wobble_switch_ != nullptr ? wobble_switch_->state : false;
+  if (wobble_strength_number_ != nullptr) cfg.wobble_amp_deg = wobble_strength_number_->state;
+  if (wobble_frequency_number_ != nullptr) cfg.wobble_freq_deg = wobble_frequency_number_->state;
+
+  if (easing_select_ != nullptr) {
+    const std::string &state = easing_select_->state;
+    if (state == "Linear") cfg.ease = ledhelpers::EaseProfile::Linear;
+    else if (state == "Quint InOut") cfg.ease = ledhelpers::EaseProfile::QuintInOut;
+    else cfg.ease = ledhelpers::EaseProfile::CubicInOut;
+  }
+  return cfg;
+}
+
+inline StairsBaseEffect::StairsBaseEffect(StairsEffectsComponent *parent,
+                                          ledhelpers::FlowMode flow,
+                                          ledhelpers::RowOrder order,
+                                          bool off_mode)
+    : parent_(parent), flow_(flow), order_(order), off_mode_(off_mode) {}
+
+inline StairsFillUpEffect::StairsFillUpEffect(StairsEffectsComponent *parent)
+    : StairsBaseEffect(parent, ledhelpers::FlowMode::Fill, ledhelpers::RowOrder::BottomToTop, false) {}
+
+inline StairsFillDownEffect::StairsFillDownEffect(StairsEffectsComponent *parent)
+    : StairsBaseEffect(parent, ledhelpers::FlowMode::Fill, ledhelpers::RowOrder::TopToBottom, false) {}
+
+inline StairsOffUpEffect::StairsOffUpEffect(StairsEffectsComponent *parent)
+    : StairsBaseEffect(parent, ledhelpers::FlowMode::Off, ledhelpers::RowOrder::BottomToTop, true) {}
+
+inline StairsOffDownEffect::StairsOffDownEffect(StairsEffectsComponent *parent)
+    : StairsBaseEffect(parent, ledhelpers::FlowMode::Off, ledhelpers::RowOrder::TopToBottom, true) {}
+
+inline void StairsBaseEffect::apply(light::AddressableLight &it, const Color &current_color) {
+  const auto *map = parent_->led_map();
+  if (map == nullptr || map->empty()) {
+    for (int i = 0; i < it.size(); ++i) it[i] = Color::BLACK;
+    return;
+  }
+
+  tracker_.bind_map(map);
+  auto cfg = parent_->build_runtime_config();
+  bool snake_now = cfg.snake;
+  bool restart = false;
+  if (!initialized_ || snake_now != snake_state_) restart = true;
+
+  if (restart) {
+    tracker_.sync_from_strip(it, snake_now);
+    tracker_.start_effect({flow_, order_}, true);
+    snake_state_ = snake_now;
+    initialized_ = true;
+    shutdown_scheduled_ = false;
+  }
+
+  tracker_.render_frame(it, cfg, current_color, millis());
+
+  if (!off_mode_) return;
+
+  if (!tracker_.finished()) {
+    shutdown_scheduled_ = false;
+    return;
+  }
+
+  if (!shutdown_scheduled_) {
+    shutdown_scheduled_ = true;
+    shutdown_at_ = millis() + parent_->shutdown_delay_ms();
+    return;
+  }
+
+  if ((int32_t)(millis() - shutdown_at_) >= 0) {
+    auto call = it.turn_off();
+    call.perform();
+    shutdown_scheduled_ = false;
+  }
+}
 
 }  // namespace stairs_effects
 }  // namespace esphome

@@ -45,6 +45,16 @@ esphome:
 
 stairs_effects:
   id: stairs_effects_component
+  map_id: map
+  per_led_number_id: per_led_ms
+  fade_steps_number_id: fade_steps_num
+  row_threshold_number_id: row_trigger_threshold
+  snake_switch_id: snake_mode
+  wobble_switch_id: subtle_wobble_enable
+  wobble_strength_number_id: subtle_hue_amp
+  wobble_frequency_number_id: wobble_freq_deg
+  easing_select_id: easing_mode
+  shutdown_delay: 50ms
 
 external_components:
   - source:
