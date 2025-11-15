@@ -48,6 +48,14 @@ esphome:
 stairs_effects:
   - id: stairs_effects_component
     led_map_id: map
+    led_count: ${light_num_leds}
+    map_valid_binary_sensor:
+      name: "LED Map Valid"
+      entity_category: diagnostic
+    map_status_text_sensor:
+      name: "LED Map Status"
+      entity_category: diagnostic
+      icon: mdi:list-status
 
 external_components:
   - source:

@@ -4,7 +4,7 @@ from esphome.const import CONF_ID, CONF_NAME
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import globals as globals_component
-from esphome.components import light, number, select, switch
+from esphome.components import binary_sensor, light, number, select, switch, text_sensor
 from esphome.components.light.effects import register_addressable_effect
 from esphome.components.light.types import AddressableLightEffect
 
@@ -29,11 +29,17 @@ CONF_WOBBLE_FREQ_ID = "wobble_frequency_number_id"
 CONF_EASING_SELECT_ID = "easing_select_id"
 CONF_SHUTDOWN_DELAY = "shutdown_delay"
 CONF_COMPONENT_ID = "component_id"
+CONF_LED_COUNT = "led_count"
+CONF_MAP_VALID_BINARY_SENSOR = "map_valid_binary_sensor"
+CONF_MAP_STATUS_TEXT_SENSOR = "map_status_text_sensor"
 
 COMPONENT_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(StairsEffectsComponent),
         cv.Required(CONF_LED_MAP_ID): cv.use_id(globals_component.GlobalsComponent),
+        cv.Optional(CONF_LED_COUNT, default=0): cv.int_,
+        cv.Optional(CONF_MAP_VALID_BINARY_SENSOR): binary_sensor.binary_sensor_schema(),
+        cv.Optional(CONF_MAP_STATUS_TEXT_SENSOR): text_sensor.text_sensor_schema(),
     }
 ).extend({})
 
@@ -46,6 +52,16 @@ async def to_code(config):
 
         led_map_var = await cg.get_variable(conf[CONF_LED_MAP_ID])
         cg.add(var.set_led_map(led_map_var))
+
+        cg.add(var.set_led_count(conf[CONF_LED_COUNT]))
+
+        if conf.get(CONF_MAP_VALID_BINARY_SENSOR):
+            sens = await binary_sensor.new_binary_sensor(conf[CONF_MAP_VALID_BINARY_SENSOR])
+            cg.add(var.set_map_valid_sensor(sens))
+
+        if conf.get(CONF_MAP_STATUS_TEXT_SENSOR):
+            txt = await text_sensor.new_text_sensor(conf[CONF_MAP_STATUS_TEXT_SENSOR])
+            cg.add(var.set_map_status_sensor(txt))
 BASE_EFFECT_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_COMPONENT_ID): cv.use_id(StairsEffectsComponent),

@@ -4,16 +4,23 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <limits>
 #include <optional>
+#include <string>
+#include <unordered_set>
 #include <vector>
 
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/globals/globals_component.h"
 #include "esphome/components/light/addressable_light.h"
 #include "esphome/components/number/number.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/switch/switch.h"
+#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace ledhelpers {
 
@@ -78,6 +85,11 @@ struct BaseColorState {
   float h{0.0f};
   float s{0.0f};
   float v{0.0f};
+};
+
+struct MapValidationResult {
+  bool valid{false};
+  std::string message{"map not checked"};
 };
 
 class FcobProgressTracker {
@@ -175,6 +187,7 @@ esphome::Color color_with_wobble(const BaseColorState &base_state,
                                  int phys_led,
                                  float intensity,
                                  float t_sec);
+MapValidationResult validate_led_map(const std::vector<std::vector<int>> &map, int total_leds);
 
 }  // namespace ledhelpers
 
@@ -735,16 +748,93 @@ inline esphome::Color color_with_wobble(const BaseColorState &base_state,
   return scale_color(c, intensity);
 }
 
+inline MapValidationResult validate_led_map(const std::vector<std::vector<int>> &map, int total_leds) {
+  MapValidationResult res;
+  if (map.empty()) {
+    res.message = "ERROR: map has no rows";
+    return res;
+  }
+
+  const bool enforce_upper = total_leds > 0;
+  std::vector<uint8_t> seen_upper;
+  std::unordered_set<int> seen_dynamic;
+  if (enforce_upper) {
+    seen_upper.assign(static_cast<size_t>(total_leds), 0u);
+  } else {
+    seen_dynamic.reserve(map.size() * 16u);
+  }
+
+  size_t total_entries = 0;
+  int min_idx = std::numeric_limits<int>::max();
+  int max_idx = std::numeric_limits<int>::min();
+
+  for (size_t r = 0; r < map.size(); ++r) {
+    const auto &row = map[r];
+    if (row.empty()) {
+      res.message = esphome::str_sprintf("ERROR: row %zu is empty", r);
+      return res;
+    }
+    for (size_t c = 0; c < row.size(); ++c) {
+      int idx = row[c];
+      if (idx < 0) {
+        res.message = esphome::str_sprintf("ERROR: row %zu col %zu has negative idx %d", r, c, idx);
+        return res;
+      }
+      if (enforce_upper && idx >= total_leds) {
+        res.message = esphome::str_sprintf("ERROR: row %zu col %zu index %d outside 0..%d", r, c, idx, total_leds - 1);
+        return res;
+      }
+
+      bool duplicate = false;
+      if (enforce_upper) {
+        if (seen_upper[(size_t) idx]) duplicate = true;
+        else seen_upper[(size_t) idx] = 1;
+      } else {
+        auto [_, inserted] = seen_dynamic.insert(idx);
+        if (!inserted) duplicate = true;
+      }
+      if (duplicate) {
+        res.message = esphome::str_sprintf("ERROR: duplicate index %d at row %zu col %zu", idx, r, c);
+        return res;
+      }
+
+      min_idx = std::min(min_idx, idx);
+      max_idx = std::max(max_idx, idx);
+      total_entries++;
+    }
+  }
+
+  if (total_entries == 0) {
+    res.message = "ERROR: map contains no LEDs";
+    return res;
+  }
+
+  if (min_idx == std::numeric_limits<int>::max()) min_idx = 0;
+  if (max_idx == std::numeric_limits<int>::min()) max_idx = 0;
+
+  res.valid = true;
+  if (enforce_upper) {
+    res.message = esphome::str_sprintf("OK: rows=%zu leds=%zu range[%d..%d] total_leds=%d",
+                                       map.size(), total_entries, min_idx, max_idx, total_leds);
+  } else {
+    res.message = esphome::str_sprintf("OK: rows=%zu leds=%zu range[%d..%d] (no led_count)",
+                                       map.size(), total_entries, min_idx, max_idx);
+  }
+  return res;
+}
+
 }  // namespace ledhelpers
 
 namespace esphome {
 namespace stairs_effects {
 
+static const char *const TAG = "stairs_effects";
+
 using led_map_t = std::vector<std::vector<int>>;
 
 class StairsEffectsComponent : public Component {
  public:
-  void setup() override {}
+  void setup() override { this->validate_map(); }
   void loop() override {}
 
   void set_led_map(globals::GlobalsComponent<led_map_t> *map) { led_map_holder_ = map; }
@@ -752,9 +842,26 @@ class StairsEffectsComponent : public Component {
   const led_map_t *led_map() const {
     return led_map_holder_ != nullptr ? &led_map_holder_->value() : nullptr;
   }
+  void set_led_count(int32_t count) { led_count_ = count; }
+  void set_map_valid_sensor(binary_sensor::BinarySensor *sensor) { map_valid_sensor_ = sensor; }
+  void set_map_status_sensor(text_sensor::TextSensor *sensor) { map_status_sensor_ = sensor; }
+  bool map_is_valid() const { return map_checked_ && map_valid_; }
+  const std::string &map_status() const { return map_status_; }
+  void ensure_map_checked() {
+    if (!map_checked_) validate_map();
+  }
 
  private:
   globals::GlobalsComponent<led_map_t> *led_map_holder_{nullptr};
+  int32_t led_count_{0};
+  bool map_checked_{false};
+  bool map_valid_{false};
+  std::string map_status_{"map not checked"};
+  binary_sensor::BinarySensor *map_valid_sensor_{nullptr};
+  text_sensor::TextSensor *map_status_sensor_{nullptr};
+
+  void validate_map();
+  void publish_map_status();
 };
 
 class StairsBaseEffect : public light::AddressableLightEffect {
@@ -777,6 +884,7 @@ class StairsBaseEffect : public light::AddressableLightEffect {
   void start() override {
     this->initialized_ = false;
     this->shutdown_scheduled_ = false;
+    this->logged_invalid_map_ = false;
     light::AddressableLightEffect::start();
   }
   void apply(light::AddressableLight &it, const Color &current_color) override;
@@ -792,6 +900,7 @@ class StairsBaseEffect : public light::AddressableLightEffect {
   bool snake_state_{false};
   bool shutdown_scheduled_{false};
   uint32_t shutdown_at_{0};
+  bool logged_invalid_map_{false};
 
   number::Number *per_led_number_{nullptr};
   number::Number *fade_steps_number_{nullptr};
@@ -827,6 +936,25 @@ class StairsOffDownEffect : public StairsBaseEffect {
 };
 
 // ---- Inline implementations ----
+
+inline void StairsEffectsComponent::validate_map() {
+  ledhelpers::MapValidationResult result;
+  if (led_map_holder_ == nullptr) {
+    result.valid = false;
+    result.message = "ERROR: led_map not bound";
+  } else {
+    result = ledhelpers::validate_led_map(led_map_holder_->value(), led_count_);
+  }
+  map_checked_ = true;
+  map_valid_ = result.valid;
+  map_status_ = result.message;
+  publish_map_status();
+}
+
+inline void StairsEffectsComponent::publish_map_status() {
+  if (map_valid_sensor_ != nullptr) map_valid_sensor_->publish_state(map_checked_ && map_valid_);
+  if (map_status_sensor_ != nullptr) map_status_sensor_->publish_state(map_status_);
+}
 
 inline ledhelpers::RuntimeConfig StairsBaseEffect::build_runtime_config() const {
   ledhelpers::RuntimeConfig cfg;
@@ -884,6 +1012,16 @@ inline StairsOffDownEffect::StairsOffDownEffect(StairsEffectsComponent *parent, 
     : StairsBaseEffect(parent, name, ledhelpers::FlowMode::Off, ledhelpers::RowOrder::TopToBottom, true) {}
 
 inline void StairsBaseEffect::apply(light::AddressableLight &it, const Color &current_color) {
+  parent_->ensure_map_checked();
+  if (!parent_->map_is_valid()) {
+    if (!logged_invalid_map_) {
+      ESP_LOGE(TAG, "[%s] %s", this->get_name().c_str(), parent_->map_status().c_str());
+      logged_invalid_map_ = true;
+    }
+    for (int i = 0; i < it.size(); ++i) it[i] = Color::BLACK;
+    return;
+  }
+
   const auto *map = parent_->led_map();
   if (map == nullptr || map->empty()) {
     for (int i = 0; i < it.size(); ++i) it[i] = Color::BLACK;
