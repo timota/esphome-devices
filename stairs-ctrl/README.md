@@ -19,7 +19,7 @@ ESPHome project for an ESP32-based FCOB strip controller. It focuses on “row-f
 | `stairs-ctrl/package.yaml` | Remote-ready ESPHome package (fetches helper via `external_components`). |
 | `stairs-ctrl/package-local.yaml` | Local-only variant referencing the bundled helper without cloning. |
 | `stairs-ctrl/example.yaml` | Sample local config consuming the package + substitutions. |
-| `stairs-ctrl/custom_components/fcob_helper` | Helper header exposed as a custom component. |
+| `stairs-ctrl/custom_components/stairs_effects` | Custom component exposing the helper + effects. |
 
 ### Remote/Git Package
 
@@ -39,6 +39,34 @@ packages:
 ```
 
 For local/offline development (when this repo is already on disk), include `stairs-ctrl/package-local.yaml` instead so ESPHome reads the helper from the bundled `custom_components/` directory without cloning.
+
+### Stairs Effects component
+
+```yaml
+stairs_effects:
+  id: stairs_effects_component
+  map_id: map
+  per_led_number_id: per_led_ms
+  fade_steps_number_id: fade_steps_num
+  row_threshold_number_id: row_trigger_threshold
+  snake_switch_id: snake_mode
+  wobble_switch_id: subtle_wobble_enable
+  wobble_strength_number_id: subtle_hue_amp
+  wobble_frequency_number_id: wobble_freq_deg
+  easing_select_id: easing_mode
+  shutdown_delay: 50ms
+
+light:
+  effects:
+    - stairs_effects.fill_up:
+        component_id: stairs_effects_component
+    - stairs_effects.fill_down:
+        component_id: stairs_effects_component
+    - stairs_effects.off_up:
+        component_id: stairs_effects_component
+    - stairs_effects.off_down:
+        component_id: stairs_effects_component
+```
 
 #### Key substitutions
 
@@ -68,28 +96,22 @@ All substitution keys in `package.yaml` have defaults so you can bootstrap quick
 
 ### Usage
 
-1. Remote deployments: add the `packages:` snippet, override sensitive substitutions, and provision via ESPHome Dashboard or CLI (the helper is fetched automatically through `external_components`). Local/offline testing: reference `package-local.yaml` (or run `esphome run stairs-ctrl/example.yaml`) so the helper is loaded from the checked-in `custom_components/` folder.  
+1. Remote deployments: add the `packages:` snippet, override sensitive substitutions, and provision via ESPHome Dashboard or CLI (the helper/effects are fetched automatically through `external_components`). Local/offline testing: reference `package-local.yaml` (or run `esphome run stairs-ctrl/example.yaml`) so the helper is loaded from the checked-in `custom_components/` folder.  
 2. In Home Assistant, select an effect, then tune Per-LED Time / Fade Steps / Row Threshold and toggle “Subtle Wobble” as you like.  
 3. Let OFF effects finish naturally to trigger the automatic turn-off (which also releases the relay).
 
 ## Technical
 
-### Effects & Lambdas
+### Effects
 
-Four `addressable_lambda` effects call `ledhelpers::global_tracker()`:
+Four built-in effects are exposed via `stairs_effects.fill_*` / `stairs_effects.off_*`:
 
-1. **FCOB Fill Up** – rows light bottom → top.  
-2. **FCOB Fill Down** – rows light top → bottom.  
-3. **FCOB Off Up** – rows fade off bottom → top.  
-4. **FCOB Off Down** – rows fade off top → bottom.
+1. **Stairs Fill Up** – rows light bottom → top.  
+2. **Stairs Fill Down** – rows light top → bottom.  
+3. **Stairs Off Up** – rows fade off bottom → top (auto power-down).  
+4. **Stairs Off Down** – rows fade off top → bottom (auto power-down).
 
-Each lambda:
-
-- Binds the LED map, validates inputs, and prepares a `RuntimeConfig`.
-- Shares wobble controls so all effects respond identically.
-- Calls `start_effect(...)` only when direction/snake state changes, which enables scan-in/out.
-- Calls `render_frame(...)` every update so wobble keeps running even when fully lit.
-- Schedules a one-shot `light.turn_off()` (about 50 ms later) when OFF effects finish.
+Each effect reuses `FcobProgressTracker` and pulls live settings from the component, so toggling switches/numbers updates the animation without editing YAML.
 
 ### Helper Highlights (`fcob_helper/led_helpers_fcob.h`)
 
