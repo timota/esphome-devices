@@ -94,7 +94,8 @@ mcp23017:
 
 binary_sensor:
   - platform: gpio
-    name: "MCP23017 Pin A1"
+    name: "Red"
+    id: button_red
     pin:
       mcp23xxx: mcp23017_hub
       # Use pin B7
@@ -104,8 +105,25 @@ binary_sensor:
         input: true
         pullup: true
       inverted: true
+    on_click:
+      - min_length: 50ms
+        max_length: 500ms
+        then:
+          - lambda: |-
+              const bool is_on = id(light_dig).current_values.is_on();
+              if (is_on) {
+                id(strip_manual_override) = false;
+                auto call = id(light_dig).turn_off();
+                call.perform();
+              } else {
+                id(strip_manual_override) = true;
+                auto call = id(light_dig).turn_on();
+                call.perform();
+              }
+          - script.execute: auto_off_timer
   - platform: gpio
-    name: "MCP23017 Pin A5"
+    name: "Yellow"
+    id: button_yellow
     pin:
       mcp23xxx: mcp23017_hub
       # Use pin B7
@@ -115,6 +133,30 @@ binary_sensor:
         input: true
         pullup: true
       inverted: true
+    on_click:
+      - min_length: 50ms
+        max_length: 500ms
+        then:
+          - lambda: |-
+              static const float colors[][4] = {
+                {1.0f, 0.0f, 0.0f, 0.0f},  // red
+                {0.0f, 1.0f, 0.0f, 0.0f},  // green
+                {0.0f, 0.0f, 1.0f, 0.0f},  // blue
+                {1.0f, 1.0f, 1.0f, 0.0f},  // rgb white
+                {0.0f, 0.0f, 0.0f, 1.0f},  // pure white (W only)
+                {1.0f, 1.0f, 1.0f, 0.5f},  // composed white (RGB+W)
+                {1.0f, 0.5f, 0.0f, 0.0f},  // orange
+                {0.6f, 0.0f, 1.0f, 0.0f},  // purple
+                {0.0f, 1.0f, 1.0f, 0.0f},  // cyan
+              };
+              const int count = sizeof(colors) / sizeof(colors[0]);
+              id(color_index) = (id(color_index) + 1) % count;
+              auto call = id(light_dig).turn_on();
+              call.set_rgbw(colors[id(color_index)][0],
+                            colors[id(color_index)][1],
+                            colors[id(color_index)][2],
+                            colors[id(color_index)][3]);
+              call.perform();
 
 button:
   - platform: restart
@@ -180,7 +222,7 @@ display:
           } else {
             it.printf(65, 3, id(mono_22), "%.1f", id(sht40_temp).state);
           }
-          it.printf(111, 3, id(mono_22), "°");
+          it.printf(115, 3, id(mono_22), "°");
 
           it.printf(121, 32, id(mono_8), TextAlign::TOP_RIGHT, "bottom");
           if (isnan(id(dig_temperature).state)) {
@@ -188,7 +230,7 @@ display:
           } else {
             it.printf(65, 39, id(mono_22), "%.1f", id(dig_temperature).state);
           }
-          it.printf(111, 39, id(mono_22), "°");
+          it.printf(115, 39, id(mono_22), "°");
 
 one_wire:
   - platform: gpio
@@ -206,7 +248,11 @@ sensor:
       accuracy_decimals: 1
       on_value:
         then:
-          - component.update: oled
+          - if:
+              condition:
+                lambda: 'return id(display_is_on);'
+              then:
+                - component.update: oled
     humidity:
       id: sht40_humidity
       name: "Rack Top Humidity"
@@ -223,12 +269,215 @@ sensor:
     address: 0xba000005a107ea28
     on_value:
       then:
-        - component.update: oled
+        - if:
+            condition:
+              lambda: 'return id(display_is_on);'
+            then:
+              - component.update: oled
 
   - platform: bh1750
+    id: bh1750_illuminance
     name: "BH1750 Illuminance"
     address: 0x23
-    update_interval: 2s
+    update_interval: 1s
+    on_value:
+      then:
+        - script.execute: update_lux_actions
+
+number:
+  - platform: template
+    id: lux_off_threshold
+    name: "Display Lux Off Threshold"
+    unit_of_measurement: "lx"
+    min_value: 0
+    max_value: 2000
+    step: 1
+    mode: box
+    restore_value: true
+    initial_value: 2
+    optimistic: true
+
+  - platform: template
+    id: lux_on_threshold
+    name: "Display Lux On Threshold"
+    unit_of_measurement: "lx"
+    min_value: 0
+    max_value: 2000
+    step: 1
+    mode: box
+    restore_value: true
+    initial_value: 3
+    optimistic: true
+
+  - platform: template
+    id: strip_transition_seconds
+    name: "Strip Transition (sec)"
+    unit_of_measurement: "s"
+    min_value: 0
+    max_value: 30
+    step: 0.5
+    mode: box
+    restore_value: true
+    initial_value: 1
+    optimistic: true
+
+  - platform: template
+    id: auto_off_minutes
+    name: "Auto Off Timeout (min)"
+    unit_of_measurement: "min"
+    min_value: 0
+    max_value: 240
+    step: 1
+    mode: box
+    restore_value: true
+    initial_value: 30
+    optimistic: true
+
+switch:
+  - platform: template
+    id: illuminance_controls_strip
+    name: "Illuminance Controls Strip"
+    restore_mode: RESTORE_DEFAULT_ON
+    optimistic: true
+
+script:
+  - id: update_lux_actions
+    mode: restart
+    then:
+      - lambda: |-
+          const float lux = id(bh1750_illuminance).state;
+          const float off_th = id(lux_off_threshold).state;
+          const float on_th = id(lux_on_threshold).state;
+
+          if (isnan(lux) || isnan(off_th) || isnan(on_th)) return;
+
+          if (lux <= off_th) {
+            id(apply_display).execute(false);
+            id(apply_strip).execute(false);
+          } else if (lux >= on_th) {
+            id(strip_manual_override) = false;
+            id(apply_display).execute(true);
+            id(apply_strip).execute(true);
+          } else {
+            return;
+          }
+
+  - id: apply_strip
+    mode: restart
+    parameters:
+      target_on: bool
+    then:
+      - if:
+          condition:
+            lambda: 'return id(illuminance_controls_strip).state;'
+          then:
+            - if:
+                condition:
+                  lambda: 'return !target_on && id(strip_manual_override);'
+                then:
+                  - lambda: |-
+                      return;
+                else:
+                  - if:
+                      condition:
+                        lambda: 'return target_on;'
+                      then:
+                        - light.turn_on:
+                            id: light_dig
+                            transition_length: !lambda 'return (uint32_t) (id(strip_transition_seconds).state * 1000);'
+                        - script.execute: auto_off_timer
+                      else:
+                        - light.turn_off:
+                            id: light_dig
+                            transition_length: !lambda 'return (uint32_t) (id(strip_transition_seconds).state * 1000);'
+
+  - id: apply_display
+    mode: restart
+    parameters:
+      target_on: bool
+    then:
+      - if:
+          condition:
+            lambda: 'return target_on;'
+          then:
+            - script.execute: fade_in
+            - script.execute: auto_off_timer
+          else:
+            - script.execute: fade_out
+
+  - id: auto_off_timer
+    mode: restart
+    then:
+      - if:
+          condition:
+            lambda: 'return id(auto_off_minutes).state > 0;'
+          then:
+            - delay: !lambda 'return (uint32_t) (id(auto_off_minutes).state * 60000);'
+            - script.execute: force_all_off
+
+  - id: force_all_off
+    mode: restart
+    then:
+      - lambda: |-
+          id(strip_manual_override) = false;
+      - script.execute:
+          id: apply_display
+          target_on: false
+      - script.execute:
+          id: apply_strip
+          target_on: false
+
+  - id: fade_out
+    mode: restart
+    then:
+      - lambda: |-
+          id(display_is_on) = false;
+      - while:
+          condition:
+            lambda: 'return id(display_contrast) > 0;'
+          then:
+            - lambda: |-
+                id(display_contrast) = max(0, id(display_contrast) - 60);
+                id(oled).set_contrast(id(display_contrast));
+            - component.update: oled
+            - delay: 10ms
+      - lambda: |-
+          id(oled).turn_off();
+
+  - id: fade_in
+    mode: restart
+    then:
+      - lambda: |-
+          id(oled).turn_on();
+          id(display_is_on) = true;
+      - while:
+          condition:
+            lambda: 'return id(display_contrast) < 255;'
+          then:
+            - lambda: |-
+                id(display_contrast) = min(255, id(display_contrast) + 60);
+                id(oled).set_contrast(id(display_contrast));
+            - component.update: oled
+            - delay: 10ms
+      - component.update: oled
+
+globals:
+  - id: display_contrast
+    type: int
+    restore_value: no
+    initial_value: '255'
+  - id: display_is_on
+    type: bool
+    restore_value: no
+    initial_value: 'true'
+  - id: color_index
+    type: int
+    restore_value: no
+    initial_value: '-1'
+  - id: strip_manual_override
+    type: bool
+    restore_value: no
+    initial_value: 'false'
 
 
 light:
