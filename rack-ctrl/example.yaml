@@ -162,7 +162,7 @@ display:
   - platform: ssd1306_i2c
     id: oled
     model: "SSD1306 128x64"
-    update_interval: 1s
+    update_interval: 30s
     pages:
       - id: page_boot
         lambda: |-
@@ -204,6 +204,9 @@ sensor:
       device_class: temperature
       unit_of_measurement: "°C"
       accuracy_decimals: 1
+      on_value:
+        then:
+          - component.update: oled
     humidity:
       id: sht40_humidity
       name: "Rack Top Humidity"
@@ -218,6 +221,9 @@ sensor:
     device_class: temperature
     update_interval: 30s
     address: 0xba000005a107ea28
+    on_value:
+      then:
+        - component.update: oled
 
   - platform: bh1750
     name: "BH1750 Illuminance"
