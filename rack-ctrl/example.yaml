@@ -1,0 +1,6 @@
+substitutions:
+  device_name: i2c-screen
+  system_log_level: NONE
+
+packages:
+  rack_ctrl: !include package.yaml
