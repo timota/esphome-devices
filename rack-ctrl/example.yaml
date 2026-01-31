@@ -1,19 +1,19 @@
 substitutions:
   device: 
     name:                   i2c-screen
-    comment:                "QuinLED Dig-Uno"
-    version:                "0.1-rc1"
+    comment:                "Rack light ctrl"
+    version:                "0.1"
   system:
     reboot_timeout:         60min
     log_level:              DEBUG
   sntp:
-    server:                 192.168.3.1
+    server:                 pool.ntp.org
   web_server:
     include_internal:       'true'
     local:                  'false'
   light:
     digital:
-      num_leds:             96
+      num_leds:             78
       transition_length:    1s
 
 esphome:
@@ -76,21 +76,11 @@ i2c:
   id: bus_a
   sda: GPIO2
   scl: GPIO32
-  # frequency: 100kHz
+  frequency: 200kHz
 
 mcp23017:
   - id: 'mcp23017_hub'
     address: 0x20
-
-# switch:
-#   - platform: gpio
-#     name: "Digital LED Power Relay"
-#     id: dig_power
-#     pin:
-#       mcp23xxx: mcp23017_hub
-#       number: 10
-#     entity_category: config
-#     # disabled_by_default: True
 
 binary_sensor:
   - platform: gpio
@@ -98,9 +88,7 @@ binary_sensor:
     id: button_red
     pin:
       mcp23xxx: mcp23017_hub
-      # Use pin B7
       number: 1
-      # One of INPUT or INPUT_PULLUP
       mode:
         input: true
         pullup: true
@@ -119,16 +107,14 @@ binary_sensor:
                 id(strip_manual_override) = true;
                 auto call = id(light_dig).turn_on();
                 call.perform();
+                id(auto_off_timer).execute();
               }
-          - script.execute: auto_off_timer
   - platform: gpio
     name: "Yellow"
     id: button_yellow
     pin:
       mcp23xxx: mcp23017_hub
-      # Use pin B7
       number: 5
-      # One of INPUT or INPUT_PULLUP
       mode:
         input: true
         pullup: true
@@ -204,7 +190,7 @@ display:
   - platform: ssd1306_i2c
     id: oled
     model: "SSD1306 128x64"
-    update_interval: 30s
+    update_interval: 60s
     pages:
       - id: page_boot
         lambda: |-
@@ -217,18 +203,18 @@ display:
           it.printf(-4, 2, id(mdi_56), "\U000F0F55");
 
           it.printf(121, -4, id(mono_8), TextAlign::TOP_RIGHT, "top");
-          if (isnan(id(sht40_temp).state)) {
+          if (isnan(id(dig_temperature).state)) {
             it.printf(65, 3, id(mono_22), "---.-");
           } else {
-            it.printf(65, 3, id(mono_22), "%.1f", id(sht40_temp).state);
+            it.printf(65, 3, id(mono_22), "%.1f", id(dig_temperature).state);
           }
           it.printf(115, 3, id(mono_22), "°");
 
           it.printf(121, 32, id(mono_8), TextAlign::TOP_RIGHT, "bottom");
-          if (isnan(id(dig_temperature).state)) {
+          if (isnan(id(sht40_temp).state)) {
             it.printf(65, 39, id(mono_22), "---.-");
           } else {
-            it.printf(65, 39, id(mono_22), "%.1f", id(dig_temperature).state);
+            it.printf(65, 39, id(mono_22), "%.1f", id(sht40_temp).state);
           }
           it.printf(115, 39, id(mono_22), "°");
 
@@ -242,7 +228,7 @@ sensor:
     update_interval: 20s
     temperature:
       id: sht40_temp
-      name: "Rack Top Temp"
+      name: "SHT Temperature"
       device_class: temperature
       unit_of_measurement: "°C"
       accuracy_decimals: 1
@@ -255,14 +241,14 @@ sensor:
                 - component.update: oled
     humidity:
       id: sht40_humidity
-      name: "Rack Top Humidity"
+      name: "SHT Humidity"
       device_class: humidity
       unit_of_measurement: "%"
       accuracy_decimals: 1
 
   - platform: dallas_temp
     id: dig_temperature
-    name: "Temperature Dig Uno"
+    name: "DS Temperature"
     unit_of_measurement: "°C"
     device_class: temperature
     update_interval: 30s
@@ -279,7 +265,7 @@ sensor:
     id: bh1750_illuminance
     name: "BH1750 Illuminance"
     address: 0x23
-    update_interval: 1s
+    update_interval: 2s
     on_value:
       then:
         - script.execute: update_lux_actions
@@ -353,7 +339,9 @@ script:
 
           if (lux <= off_th) {
             id(apply_display).execute(false);
-            id(apply_strip).execute(false);
+            if (!id(strip_manual_override)) {
+              id(apply_strip).execute(false);
+            }
           } else if (lux >= on_th) {
             id(strip_manual_override) = false;
             id(apply_display).execute(true);
@@ -373,23 +361,20 @@ script:
           then:
             - if:
                 condition:
-                  lambda: 'return !target_on && id(strip_manual_override);'
+                  lambda: 'return target_on;'
                 then:
-                  - lambda: |-
-                      return;
-                else:
                   - if:
                       condition:
-                        lambda: 'return target_on;'
+                        lambda: 'return !id(light_dig).current_values.is_on();'
                       then:
                         - light.turn_on:
                             id: light_dig
                             transition_length: !lambda 'return (uint32_t) (id(strip_transition_seconds).state * 1000);'
                         - script.execute: auto_off_timer
-                      else:
-                        - light.turn_off:
-                            id: light_dig
-                            transition_length: !lambda 'return (uint32_t) (id(strip_transition_seconds).state * 1000);'
+                else:
+                  - light.turn_off:
+                      id: light_dig
+                      transition_length: !lambda 'return (uint32_t) (id(strip_transition_seconds).state * 1000);'
 
   - id: apply_display
     mode: restart
@@ -400,8 +385,12 @@ script:
           condition:
             lambda: 'return target_on;'
           then:
-            - script.execute: fade_in
-            - script.execute: auto_off_timer
+            - if:
+                condition:
+                  lambda: 'return !id(display_is_on);'
+                then:
+                  - script.execute: fade_in
+                  - script.execute: auto_off_timer
           else:
             - script.execute: fade_out
 
@@ -420,12 +409,10 @@ script:
     then:
       - lambda: |-
           id(strip_manual_override) = false;
-      - script.execute:
-          id: apply_display
-          target_on: false
-      - script.execute:
-          id: apply_strip
-          target_on: false
+      - script.execute: fade_out
+      - light.turn_off:
+          id: light_dig
+          transition_length: !lambda 'return (uint32_t) (id(strip_transition_seconds).state * 1000);'
 
   - id: fade_out
     mode: restart
@@ -479,29 +466,20 @@ globals:
     restore_value: no
     initial_value: 'false'
 
-
 light:
     
   - platform: esp32_rmt_led_strip
     id: light_dig
-    name: Wall
+    name: Light
     rgb_order: GRB
     pin: GPIO16
-    num_leds: 19
+    num_leds: ${light.digital.num_leds}
     chipset: SK6812
     is_rgbw: True
-    # is_wrgb: True
-    # max_refresh_rate: 30ms
     use_psram: False
     restore_mode: ALWAYS_OFF
     default_transition_length: ${light.digital.transition_length}
     power_supply: dig_power
-    # on_turn_on: 
-    #   then:
-    #     - switch.turn_on: dig_power
-    # on_turn_off:
-    #   then:
-    #     - switch.turn_off: dig_power
     effects:
       - random:          
           name: "Slow Random Effect"
