@@ -2,7 +2,7 @@ substitutions:
   device_name: rack-light-ctrl
   device_comment: "Rack light ctrl"
   device_version: "0.1"
-  assets_path: /config/esphome/rack-ctrl/assets
+  assets_path: assets
   system_reboot_timeout: 60min
   system_log_level: DEBUG
   sntp_server: pool.ntp.org
@@ -171,7 +171,7 @@ font:
     glyphs: "Rack Conteldr"
 
 image:
-  - file: "assets/ha_logo_48px.xbm"
+  - file: "${assets_path}/ha_logo_48px.xbm"
     id: ha_logo
     type: BINARY
 
