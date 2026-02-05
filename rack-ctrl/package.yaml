@@ -2,6 +2,7 @@ substitutions:
   device_name: rack-light-ctrl
   device_comment: "Rack light ctrl"
   device_version: "0.1"
+  assets_path: /config/esphome/rack-ctrl/assets
   system_reboot_timeout: 60min
   system_log_level: DEBUG
   sntp_server: pool.ntp.org
@@ -159,7 +160,7 @@ font:
     id: mono_22
     size: 22
     glyphs: "0123456789.-°"
-  - file: "assets/materialdesignicons-webfont.ttf"
+  - file: "${assets_path}/materialdesignicons-webfont.ttf"
     id: mdi_56
     size: 56
     glyphs:

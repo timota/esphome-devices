@@ -3,4 +3,9 @@ substitutions:
   system_log_level: NONE
 
 packages:
-  rack_ctrl: !include package.yaml
+  rack_ctrl:
+    url: https://github.com/timota/esphome-devices
+    ref: main
+    refresh: 1min
+    files:
+      - rack-ctrl/package.yaml
