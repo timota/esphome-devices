@@ -1011,7 +1011,7 @@ inline StairsBaseEffect::StairsBaseEffect(StairsEffectsComponent *parent,
                                           ledhelpers::FlowMode flow,
                                           ledhelpers::RowOrder order,
                                           bool off_mode)
-    : light::AddressableLightEffect(name),
+    : light::AddressableLightEffect(name.c_str()),
       parent_(parent),
       flow_(flow),
       order_(order),
