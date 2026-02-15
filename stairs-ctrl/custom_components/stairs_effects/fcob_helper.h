@@ -998,7 +998,7 @@ inline ledhelpers::RuntimeConfig StairsBaseEffect::build_runtime_config() const 
   if (wobble_frequency_number_ != nullptr) cfg.wobble_freq_deg = wobble_frequency_number_->state;
 
   if (easing_select_ != nullptr) {
-    const std::string &state = easing_select_->state;
+    auto state = easing_select_->current_option();
     if (state == "Linear") cfg.ease = ledhelpers::EaseProfile::Linear;
     else if (state == "Quint InOut") cfg.ease = ledhelpers::EaseProfile::QuintInOut;
     else cfg.ease = ledhelpers::EaseProfile::CubicInOut;
