@@ -2,7 +2,7 @@ substitutions:
   device_name: stairs-ctrl
   device_friendly_name: stairs-ctrl-strip
   device_comment: "Stairs controller"
-  device_version: "0.2"
+  device_version: "0.4"
 
   sub_device_name: digital-strip
 
@@ -230,7 +230,7 @@ number:
     device_id: light_strip
 
   - platform: template
-    name: "Wobble Frequency (deg/s)"
+    name: "Wobble Frequency (deg per s)"
     id: wobble_freq_deg
     min_value: 0.0
     max_value: 24.0

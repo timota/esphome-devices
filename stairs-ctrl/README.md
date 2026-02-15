@@ -112,7 +112,7 @@ All substitution keys in `package.yaml` have defaults so you can bootstrap quick
 | `Fade Steps` | number | Sub-steps per LED (1–64). |
 | `Row Trigger Threshold` | number | Fraction of a row required before the next row unlocks. |
 | `Wobble Strength (hue °)` | number | Hue delta applied by wobble. |
-| `Wobble Frequency (deg/s)` | number | Wobble speed. |
+| `Wobble Frequency (deg per s)` | number | Wobble speed. |
 | `Easing` | select | Linear / Cubic InOut / Quint InOut. |
 | `Digital LED Power Relay` | switch | Relay for the PSU. |
 | `LED Map Valid` | binary sensor | Exposes per-component validation result. |
