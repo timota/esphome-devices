@@ -227,7 +227,7 @@ number:
     device_id: light_strip
 
   - platform: template
-    name: "Wobble Frequency (deg/s)"
+    name: "Wobble Frequency (deg per s)"
     id: wobble_freq_deg
     min_value: 0.0
     max_value: 24.0
