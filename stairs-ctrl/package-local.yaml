@@ -58,7 +58,7 @@ stairs_effects:
 external_components:
   - source:
       type: local
-      path: custom_components
+      path: components
  
 esp32:
   board: esp32dev
