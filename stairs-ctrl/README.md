@@ -20,7 +20,7 @@ ESPHome project for an ESP32-based FCOB strip controller. It focuses on “row-f
 | `stairs-ctrl/package.yaml` | Remote-ready ESPHome package (fetches helper via `external_components`). |
 | `stairs-ctrl/package-local.yaml` | Local-only variant referencing the bundled helper without cloning. |
 | `stairs-ctrl/example.yaml` | Sample local config consuming the package + substitutions. |
-| `stairs-ctrl/custom_components/stairs_effects` | Custom component exposing the helper + effects. |
+| `stairs-ctrl/components/stairs_effects` | Custom component exposing the helper + effects. |
 
 ### Remote/Git Package
 
@@ -39,7 +39,7 @@ packages:
     refresh: 30min
 ```
 
-For local/offline development (when this repo is already on disk), include `stairs-ctrl/package-local.yaml` instead so ESPHome reads the helper from the bundled `custom_components/` directory without cloning.
+For local/offline development (when this repo is already on disk), include `stairs-ctrl/package-local.yaml` instead so ESPHome reads the helper from the bundled `components/` directory without cloning.
 
 ### Stairs Effects component
 
@@ -120,7 +120,7 @@ All substitution keys in `package.yaml` have defaults so you can bootstrap quick
 
 ### Usage
 
-1. Remote deployments: add the `packages:` snippet, override sensitive substitutions, and provision via ESPHome Dashboard or CLI (the helper/effects are fetched automatically through `external_components`). Local/offline testing: reference `package-local.yaml` (or run `esphome run stairs-ctrl/example.yaml`) so the helper is loaded from the checked-in `custom_components/` folder.  
+1. Remote deployments: add the `packages:` snippet, override sensitive substitutions, and provision via ESPHome Dashboard or CLI (the helper/effects are fetched automatically through `external_components`). Local/offline testing: reference `package-local.yaml` (or run `esphome run stairs-ctrl/example.yaml`) so the helper is loaded from the checked-in `components/` folder.  
 2. In Home Assistant, select an effect, then tune Per-LED Time / Fade Steps / Row Threshold and toggle “Subtle Wobble” as you like.  
 3. Let OFF effects finish naturally to trigger the automatic turn-off (which also releases the relay).
 

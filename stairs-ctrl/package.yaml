@@ -62,7 +62,7 @@ external_components:
       type: git
       url: https://github.com/timota/esphome-devices
       ref: main
-      path: stairs-ctrl/custom_components
+      path: stairs-ctrl/components
  
 esp32:
   board: esp32dev
